@@ -1,0 +1,1503 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Echo Grid</title>
+<meta name="description" content="Echo Grid — เกมฝึกความจำใช้งานแบบ dual N-back จาก brain-shift-lab">
+<meta name="theme-color" content="#121120">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23121120'/%3E%3Cg fill='%23322F4F'%3E%3Crect x='4' y='4' width='7' height='7' rx='2'/%3E%3Crect x='12.5' y='4' width='7' height='7' rx='2'/%3E%3Crect x='4' y='12.5' width='7' height='7' rx='2'/%3E%3Crect x='21' y='12.5' width='7' height='7' rx='2'/%3E%3Crect x='4' y='21' width='7' height='7' rx='2'/%3E%3Crect x='12.5' y='21' width='7' height='7' rx='2'/%3E%3Crect x='21' y='21' width='7' height='7' rx='2'/%3E%3C/g%3E%3Crect x='21' y='4' width='7' height='7' rx='2' fill='%23C4B5FF'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<script src="config.js"></script>
+<style>
+/* Sibling of Signal Shift: same cabinet look; the stage is a 3×3 grid whose centre carries the N. */
+:root{
+  color-scheme: dark;
+  --bg:#121120; --panel:#1B1A2D; --panel2:#24223A; --line:#322F4F;
+  --fg:#EEEAFE; --muted:#A29DC8; --accent:#C4B5FF;
+  --good:#5FE0B2; --hot:#FF5470; --blue:#4F8CFF; --orange:#FF9D42;
+  --f-display:'Chakra Petch','IBM Plex Sans Thai',system-ui,sans-serif;
+  --f-body:'IBM Plex Sans Thai','Chakra Petch',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:44px 44px;background-position:-1px -1px;background-attachment:fixed}
+body::before{content:"";position:fixed;inset:0;background:radial-gradient(ellipse at 50% 30%,transparent 0,var(--bg) 75%);pointer-events:none;z-index:0}
+body.boss-on::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse at 50% 45%,transparent 30%,var(--hot) 160%);opacity:.35;animation:bosspulse 1.1s ease-in-out infinite}
+@keyframes bosspulse{50%{opacity:.6}}
+#app{position:relative;z-index:1;min-height:100%;display:flex;flex-direction:column;padding-inline:16px}
+button,input{font:inherit;color:inherit}
+a{color:var(--accent)}
+kbd{font-family:var(--f-mono);font-size:.85em;padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--panel2)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px;max-width:1040px;width:100%;margin-inline:auto}
+.brand{font-family:var(--f-display);font-weight:700;letter-spacing:.14em;font-size:13px;color:var(--muted);background:none;border:0;cursor:pointer;padding:0}
+.brand b{color:var(--fg)}
+.tb-actions{display:flex;gap:8px}
+.chipbtn{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--muted);font-family:var(--f-display);font-weight:600;letter-spacing:.04em}
+.chipbtn:hover,.chipbtn[aria-pressed="true"]{color:var(--fg);border-color:var(--accent)}
+
+main{flex:1;display:flex;max-width:1040px;width:100%;margin-inline:auto;padding-block:8px 20px}
+.screen{flex:1;min-width:0}
+footer{max-width:1040px;width:100%;margin-inline:auto;padding-block:8px 20px;font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border-radius:12px;padding:12px 20px;font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.02em;cursor:pointer;border:1px solid var(--line);background:var(--panel);transition:transform .12s,border-color .12s,background .12s}
+.btn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.btn.primary:hover{background:var(--fg)}
+.btn.daily{border-color:var(--orange)}
+.btn small{font-family:var(--f-body);font-weight:400;font-size:12px;opacity:.75;text-align:right}
+.btn.sm{padding:9px 14px;font-size:14px}
+
+/* title */
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding-block:16px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.logo{font-family:var(--f-display);font-weight:700;font-size:clamp(52px,9vw,104px);line-height:.86;letter-spacing:-.01em;margin:14px 0 18px}
+.logo span{display:block}
+.logo .s2{color:transparent;-webkit-text-stroke:2px var(--accent);padding-left:.5em}
+.tagline{color:var(--muted);max-width:46ch;font-size:16px;margin:0 0 20px;text-wrap:balance}
+.menu{display:flex;flex-direction:column;gap:10px;max-width:400px}
+.menu .btn{justify-content:space-between}
+.menu-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.menu-row .btn{justify-content:center;padding:10px 8px;font-size:14px}
+.best{margin-top:16px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 16px}
+.best b{color:var(--fg);font-family:var(--f-mono)}
+.demo{position:relative;width:100%}
+.demo-cap{font-family:var(--f-mono);font-size:12px;color:var(--muted);text-align:center;margin-top:8px;min-height:1.6em}
+.constructs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px}
+.tag{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+
+/* stage */
+.stage-wrap{position:relative;width:min(100%,380px);margin-inline:auto}
+.cue{font-family:var(--f-display);font-weight:700;letter-spacing:.16em;text-transform:uppercase;text-align:center;font-size:18px;height:30px;color:var(--accent);white-space:nowrap;overflow:hidden}
+svg.stage{width:100%;height:auto;display:block;overflow:visible}
+svg.stage .cell{fill:var(--panel);stroke:var(--line);stroke-width:2;transition:fill .08s}
+svg.stage .cell.on{fill:var(--accent);stroke:var(--accent)}
+svg.stage .core{fill:var(--bg);stroke:var(--line);stroke-width:2;stroke-dasharray:3 6}
+svg.stage .nnum{fill:var(--fg);font-family:var(--f-display);font-weight:700;font-size:40px}
+svg.stage .nlab{fill:var(--muted);font-family:var(--f-mono);font-size:12px;letter-spacing:.2em}
+svg.stage .ndot{fill:var(--accent)}
+svg.stage .ndot.s{fill:var(--orange)}
+.stage-wrap canvas{position:absolute;inset:30px 0 0 0;width:100%;height:calc(100% - 30px);pointer-events:none}
+.flash-good svg.stage .core{stroke:var(--good);stroke-dasharray:none}
+.flash-bad svg.stage .core{stroke:var(--hot);stroke-dasharray:none}
+.shake{animation:shake .28s}
+@keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+.fbtext{position:absolute;left:0;right:0;top:calc(30px + 50% - 30px);text-align:center;font-family:var(--f-display);font-weight:700;font-size:22px;pointer-events:none;opacity:0;text-shadow:0 0 6px var(--bg),0 0 12px var(--bg)}
+.fbtext.on{animation:rise .7s ease-out}
+@keyframes rise{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-28px)}}
+
+/* game */
+#scr-game{display:flex;flex-direction:column;gap:12px}
+.hud{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:8px;align-items:stretch}
+.hud .cell{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;min-width:0}
+.hud .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud .val{font-family:var(--f-mono);font-size:18px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pips{display:flex;gap:4px;padding-top:6px}
+.pip{width:12px;height:12px;border-radius:3px;background:var(--line)}
+.pip.on{background:var(--good)}
+.progress{height:4px;background:var(--line);border-radius:4px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+#scr-game.boss .progress{height:10px}
+#scr-game.boss .progress i{background:var(--hot)}
+#scr-game.boss .hud .cell{border-color:var(--hot)}
+.bossbar{display:flex;justify-content:space-between;font-family:var(--f-display);font-weight:700;letter-spacing:.12em;color:var(--hot);font-size:13px;margin-bottom:-6px}
+.legend{text-align:center;min-height:24px;font-size:14px;color:var(--muted)}
+.legend b{color:var(--fg);font-weight:600}
+.pads{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:420px;width:100%;margin-inline:auto}
+.pad{height:80px;border-radius:16px;border:1px solid var(--line);background:var(--panel);font-family:var(--f-display);font-weight:700;font-size:22px;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;transition:background .08s,border-color .08s,box-shadow .12s}
+.pad small{display:block;font-family:var(--f-body);font-size:13px;font-weight:500;color:var(--muted)}
+.pad.p small::before{content:"";display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--accent);margin-right:6px;vertical-align:1px}
+.pad.s small::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--orange);margin-right:6px;vertical-align:1px}
+.pad.hit{background:var(--panel2);border-color:var(--accent)}
+.pad.good{border-color:var(--good);box-shadow:0 0 0 2px var(--good),0 0 18px -2px var(--good)}
+.pad.bad{border-color:var(--hot);box-shadow:0 0 0 2px var(--hot),0 0 18px -2px var(--hot)}
+.pad:disabled{opacity:.25;cursor:default}
+.meta-line{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);max-width:420px;width:100%;margin-inline:auto}
+.quit{background:none;border:1px solid var(--line);border-radius:10px;color:var(--muted);padding:0 12px;cursor:pointer;font-size:13px}
+.quit:hover{color:var(--hot);border-color:var(--hot)}
+
+/* panels */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:28px;max-width:640px;margin-inline:auto}
+.panel.boss{border-color:var(--hot)}
+.panel.boss .eyebrow{color:var(--hot)}
+.panel h2{font-family:var(--f-display);font-weight:700;font-size:30px;line-height:1.1;margin:6px 0 10px;text-wrap:balance}
+.panel p{color:var(--muted);margin:0 0 14px}
+.notice{font-family:var(--f-display);font-weight:600;color:var(--good);margin-bottom:10px}
+.notice.bad{color:var(--hot)}
+.rulechips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 20px}
+.rchip{display:flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:13px}
+.rchip svg{width:26px;height:26px}
+.rchip.new{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.rchip .nb{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--bg);font-family:var(--f-display);font-weight:700}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;align-items:center}
+.hint{font-size:13px;color:var(--muted);margin-top:14px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label{font-size:13px;color:var(--muted)}
+input[type=text]{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:var(--f-mono);min-width:0}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin-bottom:12px;color:var(--fg)}
+.check input{margin-top:4px;accent-color:var(--accent);width:16px;height:16px}
+.protocol{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 18px}
+.protocol td{padding:6px 0;border-bottom:1px solid var(--line)}
+.protocol td:last-child{text-align:right;font-family:var(--f-mono);color:var(--muted)}
+
+/* how */
+.howgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:18px 0}
+.howcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:start;min-width:0}
+.howcard h3{font-family:var(--f-display);font-size:18px;margin:0 0 4px;letter-spacing:.04em}
+.howcard p{margin:0;color:var(--muted);font-size:14px}
+.howcard .measure{display:block;margin-top:8px;font-size:12px;font-family:var(--f-mono);color:var(--accent)}
+.howcard svg{width:72px;height:72px}
+.pagehead h2{font-family:var(--f-display);font-size:34px;margin:6px 0 6px;line-height:1.1}
+.pagehead p{color:var(--muted);margin:0;max-width:62ch}
+.seqbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:18px}
+.seqbox h3{font-family:var(--f-display);font-size:15px;margin:0 0 10px;letter-spacing:.04em}
+.seq{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.seq figure{margin:0;text-align:center;min-width:0}
+.seq svg{width:100%;height:auto;max-width:110px}
+.seq figcaption{font-family:var(--f-mono);font-size:11px;color:var(--muted);line-height:1.4}
+.seq figcaption b{display:block;color:var(--fg);font-family:var(--f-display);font-size:13px}
+
+/* results */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+.tile .k{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.tile .v{font-family:var(--f-mono);font-size:26px;font-weight:500;font-variant-numeric:tabular-nums;margin:2px 0;overflow-wrap:anywhere}
+.tile .n{font-size:12px;color:var(--muted);line-height:1.4}
+.tile.lead{border-color:var(--accent)}
+.chartbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.chartbox h3{font-family:var(--f-display);font-size:15px;margin:0 0 8px;letter-spacing:.04em}
+.chartbox .sub{font-size:12px;color:var(--muted);margin:-4px 0 6px}
+.chart text{fill:var(--muted);font-family:var(--f-mono);font-size:11px}
+.chart .bar{fill:var(--accent)}
+.chart .bar.s{fill:var(--orange)}
+.chart .grid{stroke:var(--line)}
+.chart .zero{stroke:var(--muted)}
+.chart .vlab{fill:var(--fg)}
+.chart .ln{fill:none;stroke:var(--accent);stroke-width:2.5}
+.chart .area{fill:var(--accent);opacity:.08}
+.chart .dot{fill:var(--panel);stroke:var(--accent);stroke-width:2}
+.chart .dot.daily{stroke:var(--orange)}
+.chart .dot.research{stroke:var(--good)}
+.chart .end{fill:var(--accent)}
+.chartscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.chartscroll svg{display:block;max-width:none}
+.charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.keyrow{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:6px}
+.keyrow i{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--accent);margin-right:6px;vertical-align:-1px}
+.keyrow i.s{background:var(--orange);border-radius:50%}
+.status{display:inline-flex;align-items:center;gap:8px;font-size:13px;padding:6px 12px;border-radius:999px;background:var(--panel2);border:1px solid var(--line)}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.status.ok::before{background:var(--good)}
+.status.err::before{background:var(--hot)}
+textarea.csv{width:100%;height:120px;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:var(--f-mono);font-size:11px;padding:8px}
+.res-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:14px}
+.res-head h2{font-family:var(--f-display);font-size:34px;margin:4px 0 0}
+.bigscore{font-family:var(--f-mono);font-size:40px;color:var(--accent)}
+.deltas{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center;font-size:13px;color:var(--muted)}
+.delta{padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-family:var(--f-mono);font-size:12px;color:var(--fg)}
+.delta.up{border-color:var(--good);color:var(--good)}
+.delta.down{border-color:var(--hot);color:var(--hot)}
+.boardbox{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.boardbox .lab{font-family:var(--f-display);font-weight:600}
+.boardbox input{width:180px}
+.rank{font-family:var(--f-display);font-weight:700;color:var(--orange)}
+
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-top:16px}
+table.data{width:100%;border-collapse:collapse;font-size:13px}
+table.data th{text-align:left;font-weight:500;color:var(--muted);font-size:12px;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.data td{padding:9px 12px;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+table.data td.name{font-family:var(--f-body);white-space:normal;overflow-wrap:anywhere}
+table.data tr:last-child td{border-bottom:0}
+table.data tr.me td{background:var(--panel2);color:var(--accent)}
+table.data td.r1{color:var(--orange);font-weight:600}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.namebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
+.namebar input{width:200px}
+
+@media (max-width:760px){
+  .hero{grid-template-columns:1fr;gap:20px}
+  .demo-col{order:-1;max-width:240px;margin-inline:auto;width:100%}
+  .howgrid{grid-template-columns:1fr}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .charts{grid-template-columns:1fr}
+  .hud{grid-template-columns:repeat(2,minmax(0,1fr)) auto}
+  .hud .cell.hide-sm{display:none}
+  .panel{padding:20px}
+  .menu{max-width:none}
+  .seq{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+  .seq figcaption{font-size:10px}
+}
+@media (max-height:700px) and (max-width:760px){ .stage-wrap{width:min(100%,300px)} .pad{height:68px} }
+@media (prefers-reduced-motion:reduce){
+  .shake{animation:none}.fbtext.on{animation:none;opacity:0}
+  .btn,.btn:hover{transition:none;transform:none}
+  body.boss-on::after{animation:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <button class="brand" id="brand" type="button">ECHO <b>GRID</b></button>
+    <div class="tb-actions">
+      <button class="chipbtn" id="sound-btn" type="button"></button>
+      <button class="chipbtn" id="lang-btn" type="button">EN</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- TITLE -->
+    <section class="screen" id="scr-title">
+      <div class="hero">
+        <div>
+          <div class="eyebrow" data-i="eyebrow"></div>
+          <h1 class="logo"><span>ECHO</span><span class="s2">GRID</span></h1>
+          <p class="tagline" data-i="tagline"></p>
+          <div class="constructs" id="constructs"></div>
+          <div class="menu">
+            <button class="btn primary" id="go-arcade" type="button"><span data-i="playArcade"></span><small data-i="playArcadeSub"></small></button>
+            <button class="btn daily" id="go-daily" type="button"><span data-i="daily"></span><small id="daily-sub"></small></button>
+            <button class="btn" id="go-research" type="button"><span data-i="research"></span><small data-i="researchSub"></small></button>
+            <div class="menu-row">
+              <button class="btn" id="go-board" type="button" data-i="board"></button>
+              <button class="btn" id="go-progress" type="button" data-i="progress"></button>
+              <button class="btn" id="go-how" type="button" data-i="how"></button>
+            </div>
+          </div>
+          <div class="best" id="title-stats"></div>
+        </div>
+        <div class="demo-col">
+          <div class="stage-wrap demo">
+            <div class="cue" id="demo-cue">2-BACK</div>
+            <svg class="stage" id="demo-svg" viewBox="0 0 300 300" aria-hidden="true"></svg>
+          </div>
+          <div class="demo-cap" id="demo-cap"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW -->
+    <section class="screen" id="scr-how" hidden>
+      <div class="pagehead"><div class="eyebrow" data-i="how"></div><h2 data-i="howTitle"></h2><p data-i="howIntro"></p></div>
+      <div class="seqbox"><h3 data-i="seqTitle"></h3><div class="seq" id="howseq"></div></div>
+      <div class="howgrid" id="howgrid"></div>
+      <div class="actions"><button class="btn primary" id="how-play" type="button" data-i="playArcade"></button><button class="btn" id="how-back" type="button" data-i="back"></button></div>
+    </section>
+
+    <!-- RESEARCH SETUP -->
+    <section class="screen" id="scr-setup" hidden>
+      <div class="panel">
+        <div class="eyebrow" data-i="research"></div>
+        <h2 data-i="setupTitle"></h2>
+        <p data-i="setupIntro"></p>
+        <div class="field"><label for="pid" data-i="pid"></label><input type="text" id="pid" autocomplete="off" maxlength="40" data-ph="pidPh"></div>
+        <div class="field"><label for="sess" data-i="sess"></label><input type="text" id="sess" autocomplete="off" maxlength="40" value="S1"></div>
+        <label class="check"><input type="checkbox" id="fb"><span data-i="fbOpt"></span></label>
+        <label class="check"><input type="checkbox" id="consent"><span data-i="consent"></span></label>
+        <table class="protocol" id="protocol"></table>
+        <div class="actions"><button class="btn primary" id="setup-start" type="button" disabled data-i="startTest"></button><button class="btn" id="setup-back" type="button" data-i="back"></button></div>
+        <div class="hint" data-i="kbHint"></div>
+      </div>
+    </section>
+
+    <!-- GAME -->
+    <section class="screen" id="scr-game" hidden>
+      <div class="hud">
+        <div class="cell"><div class="lbl" id="hud-l1"></div><div class="val" id="hud-v1">0</div></div>
+        <div class="cell hide-sm"><div class="lbl" id="hud-l2"></div><div class="val" id="hud-v2">×1</div></div>
+        <div class="cell hide-sm"><div class="lbl" id="hud-l3"></div><div class="val" id="hud-v3">1</div></div>
+        <div class="cell"><div class="lbl" id="hud-l4"></div><div class="pips" id="hud-lives"></div><div class="val" id="hud-v4" hidden></div></div>
+        <button class="quit" id="quit" type="button" data-i="quit"></button>
+      </div>
+      <div class="bossbar" id="bossbar" hidden><span id="boss-name"></span><span id="boss-hp" class="mono"></span></div>
+      <div class="progress"><i id="prog"></i></div>
+      <div class="stage-wrap" id="stage-wrap">
+        <div class="cue" id="cue"></div>
+        <svg class="stage" id="stage" viewBox="0 0 300 300" aria-label="grid"></svg>
+        <canvas id="fx"></canvas>
+        <div class="fbtext" id="fbtext"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="pads">
+        <button class="pad p" id="pad-p" type="button">F<small data-i="padP"></small></button>
+        <button class="pad s" id="pad-s" type="button">J<small data-i="padS"></small></button>
+      </div>
+      <div class="meta-line"><span id="meta-left"></span><span id="meta-right" class="mono"></span></div>
+    </section>
+
+    <!-- INTERSTITIAL -->
+    <section class="screen" id="scr-inter" hidden>
+      <div class="panel" id="inter-panel">
+        <div class="notice" id="inter-notice" hidden></div>
+        <div class="eyebrow" id="inter-eyebrow"></div>
+        <h2 id="inter-title"></h2>
+        <p id="inter-body"></p>
+        <div class="rulechips" id="inter-chips"></div>
+        <div class="actions"><button class="btn primary" id="inter-go" type="button" data-i="continue"></button></div>
+        <div class="hint" data-i="spaceHint"></div>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="screen" id="scr-results" hidden>
+      <div class="res-head">
+        <div><div class="eyebrow" id="res-eyebrow"></div><h2 id="res-title"></h2></div>
+        <div class="bigscore" id="res-score"></div>
+      </div>
+      <div class="deltas" id="res-deltas"></div>
+      <div class="boardbox" id="res-board" hidden>
+        <span class="lab" data-i="boardSubmit"></span>
+        <input type="text" id="res-name" maxlength="16" autocomplete="nickname" data-ph="namePh" aria-label="name">
+        <button class="btn sm" id="res-send" type="button" data-i="send"></button>
+        <span id="res-rank"></span>
+      </div>
+      <div class="tiles" id="res-tiles"></div>
+      <div class="chartbox"><h3 data-i="chartTitle"></h3><div class="sub" data-i="chartSub"></div><div id="res-chart"></div>
+        <div class="keyrow"><span><i></i><span data-i="c_pos"></span></span><span><i class="s"></i><span data-i="c_sym"></span></span></div></div>
+      <div class="actions" style="margin-top:16px">
+        <button class="btn primary" id="res-again" type="button" data-i="again"></button>
+        <button class="btn" id="res-board-btn" type="button" data-i="board"></button>
+        <button class="btn" id="res-csv" type="button" data-i="dlCsv"></button>
+        <button class="btn" id="res-copy" type="button" data-i="copyCsv"></button>
+        <button class="btn" id="res-menu" type="button" data-i="menu"></button>
+        <span class="status" id="res-status" hidden></span>
+      </div>
+      <textarea class="csv" id="res-csvbox" readonly hidden aria-label="CSV"></textarea>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section class="screen" id="scr-board" hidden>
+      <div class="pagehead"><div class="eyebrow" data-i="board"></div><h2 data-i="boardTitle"></h2><p id="board-intro"></p></div>
+      <div class="namebar">
+        <label for="lb-name" data-i="nameLabel"></label>
+        <input type="text" id="lb-name" maxlength="16" autocomplete="nickname" data-ph="namePh">
+        <button class="btn sm" id="lb-save" type="button" data-i="saveName"></button>
+        <span class="status" id="lb-status" hidden></span>
+      </div>
+      <div class="tabs" role="tablist">
+        <button class="chipbtn" id="tab-daily" type="button" role="tab"></button>
+        <button class="chipbtn" id="tab-arcade" type="button" role="tab" data-i="tabArcade"></button>
+        <button class="chipbtn" id="lb-refresh" type="button" data-i="refresh"></button>
+      </div>
+      <div class="tablewrap"><table class="data"><thead><tr id="lb-head"></tr></thead><tbody id="lb-body"></tbody></table></div>
+      <div class="actions" style="margin-top:16px"><button class="btn primary" id="lb-play" type="button"></button><button class="btn" id="lb-back" type="button" data-i="back"></button></div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section class="screen" id="scr-progress" hidden>
+      <div class="pagehead"><div class="eyebrow" data-i="progress"></div><h2 data-i="progTitle"></h2><p data-i="progIntro"></p></div>
+      <div class="tiles" id="prog-tiles"></div>
+      <div class="charts" id="prog-charts"></div>
+      <div class="actions" style="margin-top:16px"><button class="btn primary" id="prog-play" type="button" data-i="daily"></button><button class="btn" id="prog-back" type="button" data-i="back"></button></div>
+    </section>
+  </main>
+  <footer><span data-i="footSeries"></span><span>brain-shift-lab</span></footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const CFG = window.ECHO_GRID_CONFIG || {};
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : v; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} },
+  json(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  put(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const h = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
+let DEVICE = store.get('eg-device', '');
+if(!DEVICE){ DEVICE = 'e' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); store.set('eg-device', DEVICE); }
+const todayKey = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10); // Asia/Bangkok calendar day
+
+/* ---------------- i18n ---------------- */
+const I18N = {
+  th: {
+    eyebrow:'เกมฝึกความจำ · ห้องแล็บพกพา',
+    tagline:'ช่องในตารางจะสว่างทีละครั้งพร้อมสัญลักษณ์ ถ้า<b>ตำแหน่ง</b>ซ้ำกับเมื่อ N ครั้งก่อนกด <kbd>F</kbd> ถ้า<b>สัญลักษณ์</b>ซ้ำกด <kbd>J</kbd> ยิ่งผ่านด่าน N ยิ่งเพิ่ม',
+    c_wm:'ความจำใช้งาน', c_upd:'การอัปเดตข้อมูลในใจ', c_int:'การต้านตัวหลอก', c_attn:'สมาธิต่อเนื่อง',
+    playArcade:'เล่นอาร์เคด', playArcadeSub:'มีบอสทุก 5 ด่าน', research:'โหมดวิจัย', researchSub:'โปรโตคอลมาตรฐาน ~8 นาที',
+    daily:'ภารกิจประจำวัน', dailyNot:'วันนี้ยังไม่ได้เล่น', dailyBest:b=>`วันนี้ดีที่สุด ${b}`,
+    board:'ตารางอันดับ', progress:'ความก้าวหน้า', how:'วิธีเล่น',
+    best:'คะแนนสูงสุด', bestN:'N สูงสุด', streak:'เล่นต่อเนื่อง', days:()=>'วัน', back:'กลับ', menu:'เมนูหลัก',
+    howTitle:'จำย้อนหลัง N ครั้ง',
+    howIntro:'ทุก 2–3 วินาทีจะมีช่องหนึ่งสว่างขึ้นพร้อมสัญลักษณ์ ตัวเลขกลางตารางบอกว่า N เท่าไร ให้เทียบสิ่งที่เห็นตอนนี้กับเมื่อ N ครั้งก่อน ถ้าไม่มีอะไรซ้ำก็ไม่ต้องกด กดได้ตลอดจนกว่าช่องถัดไปจะขึ้น บนมือถือแตะปุ่มด้านล่าง',
+    seqTitle:'ตัวอย่าง 2-back · ดูว่าครั้งที่ 3–5 ต้องกดอะไร',
+    k_nback:'N-back', h_nback:'เทียบกับเมื่อ N ครั้งก่อน ไม่ใช่ครั้งล่าสุด ตอน 2-back ให้เทียบกับครั้งก่อนหน้านั้นอีกหนึ่งครั้ง', m_nback:'วัด: d′ ความจำใช้งาน',
+    k_pos:'ตำแหน่ง → F', h_pos:'ช่องที่สว่างเป็นช่องเดียวกับเมื่อ N ครั้งก่อน กด <kbd>F</kbd> ด่านแรกๆ ดูตำแหน่งอย่างเดียว', m_pos:'วัด: ความจำเชิงพื้นที่',
+    k_sym:'สัญลักษณ์ → J', h_sym:'รูปในช่องเหมือนกับเมื่อ N ครั้งก่อน กด <kbd>J</kbd> ซ้ำทั้งสองอย่างก็กดทั้งสองปุ่ม', m_sym:'วัด: ความจำเชิงวัตถุ, ต้นทุนการทำสองงาน',
+    k_lure:'ตัวหลอก', h_lure:'บางครั้งจะซ้ำกับ N−1 หรือ N+1 ครั้งก่อน ซึ่งไม่นับ อย่าเผลอกด', m_lure:'วัด: การต้านสิ่งรบกวน',
+    c_pos:'ตำแหน่ง', c_sym:'สัญลักษณ์', c_dual:'คู่',
+    padP:'ตำแหน่งซ้ำ', padS:'สัญลักษณ์ซ้ำ',
+    quit:'ออก', continue:'ไปต่อ',
+    spaceHint:'กด <kbd>Space</kbd> หรือแตะปุ่มเพื่อไปต่อ',
+    kbHint:'ใช้คีย์บอร์ดจะวัดเวลาได้แม่นที่สุด ปุ่ม F/J ทำงานได้แม้เปิดแป้นภาษาไทยอยู่',
+    hud_score:'คะแนน', hud_mult:'คอมโบ', hud_level:'ด่าน', hud_lives:'โฟกัส', hud_block:'ช่วง', hud_trial:'ข้อ', hud_acc:'ถูก', hud_n:'N',
+    cmpN:n=>`เทียบกับ <b>${n} ครั้งก่อน</b>`, cmpWarm:n=>`จำไว้ก่อน อีก ${n} ข้อถึงจะเริ่มเทียบ`,
+    cue:(n,d)=>`${n}-BACK · ${d ? 'คู่' : 'ตำแหน่ง'}`,
+    hit:'ใช่เลย', fa:'ไม่ซ้ำนะ', miss:'พลาดไป', early:'ยังไม่มีให้เทียบ', crit:'คริติคอล!',
+    level:'ด่าน', newRule:'กฎใหม่',
+    lv_pos:['เริ่มที่ตำแหน่ง','1-back: ถ้าช่องที่สว่างเป็นช่องเดียวกับครั้งก่อนหน้า กด F ถ้าไม่ใช่ไม่ต้องกด'],
+    lv_dual:['เพิ่มสัญลักษณ์','ดูสองอย่างพร้อมกัน ตำแหน่งซ้ำ → F สัญลักษณ์ซ้ำ → J ถ้าซ้ำทั้งคู่ให้กดทั้งสองปุ่ม'],
+    lv_n2:['ย้อนหลัง 2 ครั้ง','ตอนนี้ให้เทียบกับเมื่อ 2 ครั้งก่อน ไม่ใช่ครั้งล่าสุด ระวังตัวหลอกที่ซ้ำกับครั้งก่อนหน้า'],
+    lv_up:['','จำย้อนหลังเพิ่มอีกหนึ่งขั้น เริ่มด้วยตำแหน่งอย่างเดียวก่อนแล้วค่อยกลับมาเป็นคู่ คำใบ้ใต้จอหายไปแล้ว'],
+    lv_next:(n,d,s)=>`${n}-back ${d ? 'คู่' : 'ตำแหน่ง'} · ข้อละ ${s} วินาที`,
+    goal:p=>`ผ่านด่านเมื่อถูก ${p}% ขึ้นไป`,
+    passNote:(L,p,b)=>`ผ่านด่าน ${L} · ถูก ${p}%` + (b ? ' · ได้โฟกัสคืน 1 ช่อง' : ''),
+    failNote:p=>`ถูก ${p}% ยังไม่ถึงเป้า เสียโฟกัส 1 ช่อง ลองด่านเดิมอีกครั้ง`,
+    bossNames:['เงาก้อง','กระจกซ้อน','ผู้เก็บบันทึก','ราชันย์เสียงสะท้อน'],
+    bossEyebrow:n=>`บอส ${n}`,
+    bossBody:'ตำแหน่งกับสัญลักษณ์มาพร้อมกันและเร็วขึ้น ทุกครั้งที่จับคู่ซ้ำได้ถูกจะลดพลังบอส ถ้าคอมโบถึง ×4 โจมตีแรงขึ้นสองเท่า ชนะได้คะแนนพิเศษและโฟกัสคืน 2 ช่อง ถ้าไม่ชนะในรอบนี้บอสจะหนีไป',
+    bossWin:b=>`ชนะบอส! +${b.toLocaleString()} และได้โฟกัสคืน 2 ช่อง`, bossEscape:'บอสหนีไปได้ ไม่เป็นไร ด่านต่อไปรออยู่',
+    setupTitle:'ตั้งค่าการทดสอบ',
+    setupIntro:'ทุกคนได้โปรโตคอลเดียวกัน ข้อละ 3 วินาที (สัญลักษณ์ขึ้น 0.5 วินาที) มีพักระหว่างช่วง ไม่มีชีวิตและไม่ตัดจบกลางคัน ผลบันทึกเป็นรายข้อพร้อมเวลาตอบสนองเป็นมิลลิวินาที',
+    pid:'รหัสผู้เข้าร่วม', pidPh:'เช่น P017', sess:'ครั้งที่ / ป้ายกำกับ',
+    fbOpt:'แสดงผลถูก/ผิดระหว่างทดสอบ (ช่วงฝึกซ้อมแสดงเสมอ)', consent:'ฉันยินยอมให้บันทึกข้อมูลการตอบสนอง (ไม่มีชื่อหรือข้อมูลส่วนตัว) เพื่อใช้ในงานวิจัย',
+    startTest:'เริ่มทดสอบ',
+    b_practice:'ฝึกซ้อม · 1-back คู่', b_p1:'1-back ตำแหน่ง', b_p2:'2-back ตำแหน่ง', b_d2:'2-back คู่', b_d3:'3-back คู่',
+    trials:'ข้อ',
+    blockOf:(i,n)=>`ช่วง ${i} จาก ${n}`,
+    blockBody:{practice:'ลองฝึกก่อน ข้อเหล่านี้ไม่นำไปวิเคราะห์ ตำแหน่งซ้ำกับครั้งก่อน → F สัญลักษณ์ซ้ำ → J',
+      p1:'ดูตำแหน่งอย่างเดียว ช่องเดียวกับครั้งก่อนหน้า → F', p2:'ดูตำแหน่งอย่างเดียว ช่องเดียวกับเมื่อ 2 ครั้งก่อน → F',
+      d2:'ดูทั้งสองอย่าง เทียบกับเมื่อ 2 ครั้งก่อน ตำแหน่ง → F สัญลักษณ์ → J', d3:'ดูทั้งสองอย่าง เทียบกับเมื่อ 3 ครั้งก่อน ช่วงนี้ยากที่สุด ทำเต็มที่ก็พอ'},
+    restNote:'พักได้ตามสบาย พร้อมเมื่อไรค่อยไปต่อ',
+    dailyTitle:'ภารกิจประจำวัน', dailyEyebrow:d=>`ภารกิจ ${d}`,
+    dailyBody:'วันนี้ทุกคนได้ลำดับเดียวกัน 42 ข้อ แบบ 2-back คู่ ไม่มีชีวิต ทำคะแนนให้สูงที่สุด เล่นซ้ำได้ ตารางอันดับนับครั้งที่ดีที่สุด ลำดับใหม่มาทุกเที่ยงคืน',
+    gameOver:'หมดโฟกัส', runDone:'จบการทดสอบ', dailyDone:'จบภารกิจวันนี้', arcadeRes:'อาร์เคด · ถึงด่าน', researchRes:'โหมดวิจัย',
+    t_acc:'ความแม่นยำ', t_dp:'d′ รวม', t_hit:'จับคู่ซ้ำได้', t_fa:'กดผิด', t_rt:'เวลาตอบ (มัธยฐาน)', t_lure:'กดผิดที่ตัวหลอก', t_maxN:'N สูงสุดที่ผ่าน', t_dual:'ต้นทุนการทำสองงาน',
+    n_acc:'ทุกช่องทาง ไม่นับข้อแรกๆ', n_dp:'แยกซ้ำ/ไม่ซ้ำได้ดีแค่ไหน (0 = เดา)', n_hit:'สัดส่วนข้อซ้ำที่กดทัน', n_fa:'สัดส่วนข้อไม่ซ้ำที่เผลอกด',
+    n_rt:'เฉพาะข้อที่กดถูก', n_lure:'เทียบกับข้อไม่ซ้ำทั่วไป', n_maxN:'ระดับ N ของด่านสุดท้ายที่ผ่าน', n_dual:'d′ ตำแหน่ง 2-back เดี่ยว ลบ แบบคู่',
+    chartTitle:'d′ แยกตามเงื่อนไข', chartSub:'ยิ่งสูงยิ่งแยกได้ดี · 1 ขึ้นไปถือว่าดี',
+    vsPrev:n=>`เทียบกับค่าเฉลี่ย ${n} ครั้งก่อน`, firstRun:'ครั้งแรกของคุณ เล่นอีกครั้งเพื่อดูว่าพัฒนาขึ้นแค่ไหน',
+    d_acc:'ความแม่นยำ', d_dp:'d′', d_rt:'RT',
+    again:'เล่นอีกครั้ง', dlCsv:'ดาวน์โหลด CSV', copyCsv:'คัดลอก CSV', copied:'คัดลอกแล้ว', copyFail:'เลือกข้อความด้านล่างแล้วคัดลอกเอง',
+    saving:'กำลังบันทึก…', saved:'บันทึกลงฐานข้อมูลการวิจัยแล้ว', saveFail:'บันทึกออนไลน์ไม่ได้ กรุณาดาวน์โหลด CSV เก็บไว้', noSave:'หน้านี้ยังไม่ได้เชื่อมฐานข้อมูล กรุณาดาวน์โหลด CSV เก็บไว้',
+    dlFail:'ดาวน์โหลดไม่ได้ในหน้านี้ ใช้ปุ่มคัดลอกแทน', newBest:'สถิติใหม่!',
+    boardSubmit:'ขึ้นตารางอันดับ', namePh:'ชื่อที่แสดง', send:'ส่งคะแนน', sending:'กำลังส่ง…',
+    rankIs:(r,n,k)=>`อันดับ ${r} จาก ${n} ${k === 'daily' ? '(วันนี้)' : '(ตลอดกาล)'}`, sendFail:'ส่งไม่สำเร็จ ลองอีกครั้ง', needName:'ใส่ชื่อก่อนส่ง',
+    boardTitle:'ใครจำได้ไกลที่สุด', boardOnline:'ตารางรวมของผู้เล่นทุกคน อัปเดตทุกครั้งที่มีคนส่งคะแนน ชื่อที่แสดงตั้งเองได้ ไม่ต้องสมัครสมาชิก',
+    boardLocal:'หน้านี้ยังไม่ได้เชื่อมต่อตารางรวม จึงแสดงเฉพาะสถิติในเครื่องนี้',
+    nameLabel:'ชื่อของฉัน', saveName:'บันทึกชื่อ', nameSaved:'บันทึกชื่อแล้ว',
+    tabDaily:'วันนี้', tabArcade:'อาร์เคดตลอดกาล', refresh:'โหลดใหม่', loading:'กำลังโหลด…',
+    lb_rank:'#', lb_name:'ชื่อ', lb_score:'คะแนน', lb_level:'ด่าน', lb_n:'N', lb_acc:'ถูก', lb_none:'ยังไม่มีใครส่งคะแนน เป็นคนแรกเลย', lb_fail:'โหลดตารางไม่ได้ ลองกดโหลดใหม่', you:'คุณ',
+    progTitle:'ความจำคุณไปถึงไหนแล้ว', progIntro:'ทุกรอบที่เล่นในเครื่องนี้ถูกเก็บไว้ ดูแนวโน้มว่าจำได้แม่นขึ้นและไปได้ไกลขึ้นไหม จุดสีม่วงคืออาร์เคด ส้มคือภารกิจประจำวัน เขียวคือโหมดวิจัย',
+    p_runs:'รอบที่เล่น', p_best:'คะแนนอาร์เคดสูงสุด', p_streak:'เล่นภารกิจต่อเนื่อง', p_bestN:'N สูงสุดที่ผ่าน',
+    pc_dp:'d′ รวม', pc_rt:'เวลาตอบ (ms)', pc_n:'N สูงสุดที่ผ่าน (อาร์เคด)', pc_lower:'ยิ่งต่ำยิ่งดี', pc_higher:'ยิ่งสูงยิ่งดี',
+    p_need:'เล่นอย่างน้อย 2 รอบเพื่อดูแนวโน้ม', p_trend:(d,good)=>`${good ? 'ดีขึ้น' : 'แย่ลง'} ${d} เทียบ 5 รอบแรก`,
+    soundOn:'เสียง: เปิด', soundOff:'เสียง: ปิด',
+    demoWarm:'จำไว้ก่อน…', demoNone:'ไม่ซ้ำ · ไม่ต้องกด', demoAns:'คำตอบ:', demoBoth:'ซ้ำทั้งคู่',
+    footSeries:'อีกเกมจากซีรีส์เดียวกัน: <a href="https://brain-shift-lab.github.io/">Signal Shift</a> — ฝึกสลับกฎ'
+  },
+  en: {
+    eyebrow:'Memory training · pocket lab',
+    tagline:'One square lights up at a time, carrying a symbol. If the <b>position</b> matches the one N steps back, press <kbd>F</kbd>. If the <b>symbol</b> matches, press <kbd>J</kbd>. Clear a level and N goes up.',
+    c_wm:'Working memory', c_upd:'Memory updating', c_int:'Lure resistance', c_attn:'Sustained attention',
+    playArcade:'Play arcade', playArcadeSub:'A boss every 5 levels', research:'Research mode', researchSub:'Standard protocol ~8 min',
+    daily:'Daily challenge', dailyNot:'Not played today', dailyBest:b=>`Today's best ${b}`,
+    board:'Leaderboard', progress:'Progress', how:'How to play',
+    best:'Best score', bestN:'Highest N', streak:'Daily streak', days:n=>n === 1 ? 'day' : 'days', back:'Back', menu:'Main menu',
+    howTitle:'Remember N steps back',
+    howIntro:'Every 2–3 seconds one square lights up with a symbol. The number in the centre tells you N. Compare what you see now with what you saw N steps ago. If nothing matches, press nothing. You can answer until the next square appears. On a phone, tap the pads.',
+    seqTitle:'A 2-back example · what to press on steps 3–5',
+    k_nback:'N-back', h_nback:'Compare with N steps back, not the last one. In 2-back, look one further back than the previous square.', m_nback:'Measures: working-memory d′',
+    k_pos:'Position → F', h_pos:'The lit square is the same square as N steps back: press <kbd>F</kbd>. Early levels use position only.', m_pos:'Measures: spatial memory',
+    k_sym:'Symbol → J', h_sym:'The symbol is the same as N steps back: press <kbd>J</kbd>. Both match? Press both keys.', m_sym:'Measures: object memory, dual-task cost',
+    k_lure:'Lures', h_lure:'Sometimes an item repeats from N−1 or N+1 steps back. That does not count, so hold back.', m_lure:'Measures: interference control',
+    c_pos:'Position', c_sym:'Symbol', c_dual:'dual',
+    padP:'Position match', padS:'Symbol match',
+    quit:'Quit', continue:'Continue',
+    spaceHint:'Press <kbd>Space</kbd> or tap the button to continue',
+    kbHint:'A keyboard gives the most precise timing. F/J work with any keyboard layout.',
+    hud_score:'Score', hud_mult:'Combo', hud_level:'Level', hud_lives:'Focus', hud_block:'Block', hud_trial:'Trial', hud_acc:'Correct', hud_n:'N',
+    cmpN:n=>`Compare with <b>${n} step${n > 1 ? 's' : ''} back</b>`, cmpWarm:n=>`Just remember. Matching starts after ${n} item${n > 1 ? 's' : ''}`,
+    cue:(n,d)=>`${n}-BACK · ${d ? 'DUAL' : 'POSITION'}`,
+    hit:'Match!', fa:'No match', miss:'Missed', early:'Nothing to compare yet', crit:'Critical!',
+    level:'Level', newRule:'New rule',
+    lv_pos:['Start with position','1-back: if the lit square is the same as the previous one, press F. Otherwise press nothing.'],
+    lv_dual:['Add symbols','Track two things at once. Position match → F, symbol match → J. Both match? Press both.'],
+    lv_n2:['Two steps back','Now compare with 2 steps ago, not the last one. Watch out for lures that repeat the previous item.'],
+    lv_up:['','One more step to remember. Position only first, then dual again. The hint under the grid is gone.'],
+    lv_next:(n,d,s)=>`${n}-back ${d ? 'dual' : 'position'} · ${s} s per item`,
+    goal:p=>`Clear the level with ${p}% or better`,
+    passNote:(L,p,b)=>`Level ${L} clear · ${p}% correct` + (b ? ' · one focus bar restored' : ''),
+    failNote:p=>`${p}% correct, below the goal. One focus bar lost. Try the same level again.`,
+    bossNames:['The Echo','The Mirror Maze','The Archivist','The Echo King'],
+    bossEyebrow:n=>`Boss ${n}`,
+    bossBody:'Position and symbol, faster than before. Every correct match drains its health. At combo ×4 your hits count double. Win for a big bonus and 2 focus bars. If you cannot win this round, the boss escapes.',
+    bossWin:b=>`Boss defeated! +${b.toLocaleString()} and 2 focus bars restored`, bossEscape:'The boss escaped. The next level is waiting.',
+    setupTitle:'Set up the session',
+    setupIntro:'Everyone gets the same protocol: 3 seconds per item (symbol shown for 0.5 s), with breaks between blocks. No lives and no early ending. Every trial is logged with reaction time in milliseconds.',
+    pid:'Participant ID', pidPh:'e.g. P017', sess:'Session label',
+    fbOpt:'Show correct/wrong during the test (always shown in practice)', consent:'I agree that my responses (no name or personal details) are recorded for research.',
+    startTest:'Start session',
+    b_practice:'Practice · 1-back dual', b_p1:'1-back position', b_p2:'2-back position', b_d2:'2-back dual', b_d3:'3-back dual',
+    trials:'trials',
+    blockOf:(i,n)=>`Block ${i} of ${n}`,
+    blockBody:{practice:'A short warm-up that is not analysed. Same square as the previous one → F, same symbol → J.',
+      p1:'Position only. Same square as the previous one → F.', p2:'Position only. Same square as 2 steps back → F.',
+      d2:'Both channels, compared with 2 steps back. Position → F, symbol → J.', d3:'Both channels, compared with 3 steps back. The hardest block. Just do your best.'},
+    restNote:'Take a break. Continue whenever you are ready.',
+    dailyTitle:'Daily challenge', dailyEyebrow:d=>`Challenge · ${d}`,
+    dailyBody:'Everyone gets the same 42-item 2-back dual sequence today, with no lives. Score as high as you can. Replays are allowed and the leaderboard keeps your best. A new sequence arrives at midnight (Bangkok time).',
+    gameOver:'Out of focus', runDone:'Session complete', dailyDone:'Daily challenge complete', arcadeRes:'Arcade · reached level', researchRes:'Research mode',
+    t_acc:'Accuracy', t_dp:'Overall d′', t_hit:'Hit rate', t_fa:'False alarms', t_rt:'Response time (median)', t_lure:'Lure false alarms', t_maxN:'Highest N cleared', t_dual:'Dual-task cost',
+    n_acc:'All channels, warm-up items excluded', n_dp:'How well you tell match from no match (0 = guessing)', n_hit:'Share of matches you caught', n_fa:'Share of non-matches you pressed',
+    n_rt:'Hits only', n_lure:'Compare with ordinary non-matches', n_maxN:'N of the last level you cleared', n_dual:'2-back position d′, single minus dual',
+    chartTitle:'d′ by condition', chartSub:'Higher means cleaner separation · 1 or more is good',
+    vsPrev:n=>`Compared with your previous ${n} runs`, firstRun:'Your first run. Play again to see how much you improve.',
+    d_acc:'Accuracy', d_dp:'d′', d_rt:'RT',
+    again:'Play again', dlCsv:'Download CSV', copyCsv:'Copy CSV', copied:'Copied', copyFail:'Select the text below and copy it',
+    saving:'Saving…', saved:'Saved to the research database', saveFail:'Could not save online. Please download the CSV.', noSave:'This page is not connected to a database. Please download the CSV.',
+    dlFail:'Downloads are unavailable here. Use Copy instead.', newBest:'New best!',
+    boardSubmit:'Join the leaderboard', namePh:'Display name', send:'Submit', sending:'Submitting…',
+    rankIs:(r,n,k)=>`Rank ${r} of ${n} ${k === 'daily' ? '(today)' : '(all time)'}`, sendFail:'Could not submit. Try again.', needName:'Enter a name first',
+    boardTitle:'Who remembers furthest', boardOnline:'A shared board for every player, updated whenever someone submits. Pick any display name; no sign-up needed.',
+    boardLocal:'This page is not connected to a shared board, so it shows the stats saved on this device.',
+    nameLabel:'My name', saveName:'Save name', nameSaved:'Name saved',
+    tabDaily:'Today', tabArcade:'Arcade all-time', refresh:'Refresh', loading:'Loading…',
+    lb_rank:'#', lb_name:'Name', lb_score:'Score', lb_level:'Level', lb_n:'N', lb_acc:'Acc', lb_none:'No scores yet. Be the first.', lb_fail:'Could not load the board. Try Refresh.', you:'you',
+    progTitle:'How far your memory reaches', progIntro:'Every run on this device is kept. See whether you are getting more accurate and reaching higher N. Purple dots are arcade runs, orange are daily challenges, green are research sessions.',
+    p_runs:'Runs played', p_best:'Best arcade score', p_streak:'Daily streak', p_bestN:'Highest N cleared',
+    pc_dp:'Overall d′', pc_rt:'Response time (ms)', pc_n:'Highest N cleared (arcade)', pc_lower:'Lower is better', pc_higher:'Higher is better',
+    p_need:'Play at least 2 runs to see a trend', p_trend:(d,good)=>`${good ? 'Better' : 'Worse'} by ${d} vs your first 5 runs`,
+    soundOn:'Sound: on', soundOff:'Sound: off',
+    demoWarm:'Remember…', demoNone:'No match · press nothing', demoAns:'Answer:', demoBoth:'both match',
+    footSeries:'Also in the series: <a href="https://brain-shift-lab.github.io/">Signal Shift</a> — rule switching'
+  }
+};
+let LANG = store.get('eg-lang', '') || ((navigator.language || 'th').startsWith('th') ? 'th' : 'en');
+if(LANG !== 'en') LANG = 'th';
+const t = (k, ...a) => { const v = I18N[LANG][k] ?? I18N.en[k] ?? k; return typeof v === 'function' ? v(...a) : v; };
+const fmtDate = d => new Intl.DateTimeFormat(LANG === 'th' ? 'th-TH' : 'en-GB', {day:'numeric', month:'short', timeZone:'UTC'}).format(new Date(d + 'T00:00:00Z'));
+
+/* ---------------- random (seedable for the daily challenge) ---------------- */
+let RNG = Math.random;
+const rand = () => RNG();
+const pick = a => a[Math.floor(rand() * a.length)];
+function seeded(str){
+  let hsh = 1779033703 ^ str.length;
+  for(let i = 0; i < str.length; i++){ hsh = Math.imul(hsh ^ str.charCodeAt(i), 3432918353); hsh = hsh << 13 | hsh >>> 19; }
+  let a = hsh >>> 0;
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let x = Math.imul(a ^ a >>> 15, 1 | a); x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x; return ((x ^ x >>> 14) >>> 0) / 4294967296; };
+}
+function shuffle(a){ for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const range = (a, b) => Array.from({length:Math.max(0, b - a)}, (_, i) => a + i);
+
+/* ---------------- sequence generation ----------------
+   One channel = 8 possible values. Exactly nT targets are placed at random among the scorable
+   trials (i >= N). Non-targets never equal the N-back item; with probability lureP they copy
+   the (N-1)- or (N+1)-back item instead (a lure), otherwise they avoid those too.          */
+const K = 8;
+function genChannel(len, N, nT, lureP){
+  const tg = new Set(shuffle(range(N, len)).slice(0, nT));
+  const v = [];
+  for(let i = 0; i < len; i++){
+    if(i < N){ let x; do { x = Math.floor(rand() * K); } while(i > 0 && x === v[i - 1]); v.push(x); continue; }
+    if(tg.has(i)){ v.push(v[i - N]); continue; }
+    const ban = v[i - N];
+    const lures = [];
+    if(N >= 2) lures.push(v[i - N + 1]);
+    if(i - N - 1 >= 0) lures.push(v[i - N - 1]);
+    const L = [...new Set(lures)].filter(x => x !== ban);
+    if(L.length && rand() < lureP) v.push(pick(L));
+    else v.push(pick(range(0, K).filter(x => x !== ban && !L.includes(x))));
+  }
+  return v;
+}
+const isLure = (v, i, N) => i >= N && v[i] !== v[i - N] && ((N >= 2 && v[i] === v[i - N + 1]) || (i - N - 1 >= 0 && v[i] === v[i - N - 1])) ? 1 : 0;
+
+/* ---------------- sound ---------------- */
+let SOUND = store.get('eg-sound', '1') === '1';
+let AC = null;
+function ac(){ try{ AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if(AC.state === 'suspended') AC.resume(); }catch(e){} return AC; }
+function toneAt(t0, freq, dur = .08, type = 'square', vol = .04){
+  if(!SOUND || !AC) return;
+  try{
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+    o.connect(g).connect(AC.destination); o.start(t0); o.stop(t0 + dur + .02);
+  }catch(e){}
+}
+function tone(freq, dur, type, vol, when = 0){ if(!SOUND) return; ac(); if(AC) toneAt(AC.currentTime + when, freq, dur, type, vol); }
+const sfx = {
+  tick(){ tone(1320, .025, 'sine', .012); },
+  good(m){ tone(520 + m * 40, .07, 'square', .035); tone(780 + m * 40, .08, 'square', .03, .05); },
+  bad(){ tone(140, .2, 'sawtooth', .05); },
+  level(){ [440, 554, 659, 880].forEach((f, i) => tone(f, .1, 'square', .035, i * .08)); },
+  over(){ [330, 262, 196].forEach((f, i) => tone(f, .18, 'triangle', .06, i * .15)); },
+  boss(){ [880, 660, 880, 660, 1100].forEach((f, i) => tone(f, .12, 'sawtooth', .04, i * .1)); }
+};
+const Music = {
+  timer:null, step:0, tempo:116, next:0,
+  start(){ if(!SOUND) return; ac(); if(!AC) return; this.stop(); this.step = 0; this.tempo = 116; this.next = AC.currentTime + .08; this.timer = setInterval(() => this.tick(), 30); },
+  tick(){ if(!AC) return; while(this.next < AC.currentTime + .12){ this.play(this.step, this.next); this.next += 60 / this.tempo / 2; this.step++; } },
+  play(i, at){
+    const roots = [49, 49, 58.3, 43.7];
+    const root = roots[Math.floor(i / 8) % 4];
+    if(i % 2 === 0) toneAt(at, root, .14, 'sawtooth', .05);
+    const arp = [3, 4, 6, 4][i % 4];
+    toneAt(at, root * arp * 2, .06, 'square', .016);
+    if(i % 8 === 6) toneAt(at + .09, root * arp * 2, .05, 'square', .01); // echo
+  },
+  stop(){ clearInterval(this.timer); this.timer = null; }
+};
+
+/* ---------------- drawing ---------------- */
+const SLOTS = [0, 1, 2, 3, 5, 6, 7, 8]; // 8 positions; slot 4 (centre) carries N
+const slotXY = s => [12 + (s % 3) * 96, 12 + Math.floor(s / 3) * 96];
+function glyph(sym, cx, cy, fill, k = 1){
+  const st = `style="fill:${fill}"`, r = n => (n * k).toFixed(1);
+  const poly = pts => `<polygon points="${pts.map(([x, y]) => `${(cx + x * k).toFixed(1)},${(cy + y * k).toFixed(1)}`).join(' ')}" ${st}/>`;
+  const reg = (n, R, rot = -Math.PI / 2, inner) => { const p = []; const m = inner ? n * 2 : n;
+    for(let i = 0; i < m; i++){ const a = rot + i * 2 * Math.PI / m, rr = inner && i % 2 ? inner : R; p.push([Math.cos(a) * rr, Math.sin(a) * rr]); } return poly(p); };
+  switch(sym){
+    case 0: return `<circle cx="${cx}" cy="${cy}" r="${r(22)}" ${st}/>`;
+    case 1: return poly([[0, -25], [25, 19], [-25, 19]]);
+    case 2: return `<rect x="${cx - 20 * k}" y="${cy - 20 * k}" width="${r(40)}" height="${r(40)}" rx="${r(4)}" ${st}/>`;
+    case 3: return poly([[0, -27], [23, 0], [0, 27], [-23, 0]]);
+    case 4: return reg(5, 27, -Math.PI / 2, 11.5);
+    case 5: return `<path d="M${cx - 7 * k},${cy - 24 * k}h${r(14)}v${r(17)}h${r(17)}v${r(14)}h${-17 * k}v${r(17)}h${-14 * k}v${-17 * k}h${-17 * k}v${-14 * k}h${r(17)}z" ${st}/>`;
+    case 6: return `<circle cx="${cx}" cy="${cy}" r="${r(17)}" fill="none" style="stroke:${fill}" stroke-width="${r(9)}"/>`;
+    case 7: return reg(6, 24, 0);
+  }
+  return '';
+}
+function centre(n, dual){
+  if(!n) return `<rect class="core" x="108" y="108" width="84" height="84" rx="14"/>`;
+  return `<rect class="core" x="108" y="108" width="84" height="84" rx="14"/>` +
+    `<text class="nnum" x="150" y="152" text-anchor="middle">${n}</text><text class="nlab" x="151" y="168" text-anchor="middle">BACK</text>` +
+    `<rect class="ndot" x="${dual ? 137 : 145.5}" y="175" width="9" height="9" rx="2"/>` + (dual ? `<circle class="ndot s" cx="158.5" cy="179.5" r="4.5"/>` : '');
+}
+function drawGrid(svg, n, dual, stim){
+  let s = '';
+  SLOTS.forEach((slot, p) => {
+    const [x, y] = slotXY(slot), on = stim && stim.pos === p;
+    s += `<rect class="cell${on ? ' on' : ''}" x="${x}" y="${y}" width="84" height="84" rx="14"/>`;
+    if(on && dual && stim.sym !== '' && stim.sym !== null && stim.sym !== undefined) s += glyph(stim.sym, x + 42, y + 42, 'var(--bg)');
+  });
+  svg.innerHTML = s + centre(n, dual);
+}
+function miniGrid(lit, sym, opts = {}){
+  let s = '';
+  for(let slot = 0; slot < 9; slot++){
+    const [x, y] = slotXY(slot), on = slot === lit;
+    if(slot === 4 && !opts.full){ s += `<rect x="${x}" y="${y}" width="84" height="84" rx="14" style="fill:var(--bg);stroke:var(--line)" stroke-width="3" stroke-dasharray="4 8"/>`; continue; }
+    s += `<rect x="${x}" y="${y}" width="84" height="84" rx="14" style="fill:${on ? 'var(--accent)' : 'var(--panel2)'};stroke:${on ? 'var(--accent)' : 'var(--line)'}" stroke-width="3"/>`;
+    if(on && sym !== null && sym !== undefined) s += glyph(sym, x + 42, y + 42, 'var(--bg)');
+  }
+  return s + (opts.extra || '');
+}
+function miniSVG(kind){
+  const map = {
+    pos: miniGrid(2, null),
+    sym: miniGrid(6, 4),
+    dual: miniGrid(0, 1),
+    nback: `<rect x="10" y="100" width="80" height="80" rx="14" style="fill:var(--accent)"/>` + glyph(3, 50, 140, 'var(--bg)') +
+      `<rect x="110" y="100" width="80" height="80" rx="14" style="fill:var(--panel2);stroke:var(--line)" stroke-width="3"/>` + glyph(0, 150, 140, 'var(--muted)') +
+      `<rect x="210" y="100" width="80" height="80" rx="14" style="fill:var(--accent)"/>` + glyph(3, 250, 140, 'var(--bg)') +
+      `<path d="M250,88 C250,30 50,30 50,88" fill="none" style="stroke:var(--good)" stroke-width="8" stroke-linecap="round"/><path d="M36,74 L50,94 L64,74" fill="none" style="stroke:var(--good)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<text x="150" y="250" text-anchor="middle" style="fill:var(--fg);font-family:var(--f-display);font-weight:700;font-size:54px">N=2</text>`,
+    lure: `<rect x="10" y="100" width="80" height="80" rx="14" style="fill:var(--panel2);stroke:var(--line)" stroke-width="3"/>` + glyph(0, 50, 140, 'var(--muted)') +
+      `<rect x="110" y="100" width="80" height="80" rx="14" style="fill:var(--accent)"/>` + glyph(4, 150, 140, 'var(--bg)') +
+      `<rect x="210" y="100" width="80" height="80" rx="14" style="fill:var(--accent)"/>` + glyph(4, 250, 140, 'var(--bg)') +
+      `<path d="M250,88 C250,48 150,48 150,88" fill="none" style="stroke:var(--hot)" stroke-width="8" stroke-linecap="round" stroke-dasharray="14 12"/>` +
+      `<path d="M130,226 l40,40 M170,226 l-40,40" style="stroke:var(--hot)" stroke-width="12" stroke-linecap="round"/>`
+  };
+  return `<svg viewBox="0 0 300 300" aria-hidden="true">${map[kind] || ''}</svg>`;
+}
+
+/* ---------------- screens ---------------- */
+const SCREENS = ['title', 'how', 'setup', 'game', 'inter', 'results', 'board', 'progress'];
+let CUR = 'title';
+function show(name){
+  CUR = name;
+  SCREENS.forEach(s => { $('#scr-' + s).hidden = s !== name; });
+  window.scrollTo(0, 0);
+}
+function home(){ show('title'); renderStatic(); startDemo(); }
+
+/* ---------------- storage backend ----------------
+   sheets : Google Apps Script web app (see config.js and apps-script/Code.gs)
+   local  : this device only                                                  */
+const Backend = {
+  kind: CFG.backendUrl ? 'sheets' : 'local',
+  online(){ return this.kind !== 'local'; },
+  async get(params){
+    const u = new URL(CFG.backendUrl);
+    Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+    const r = await fetch(u.toString(), {method:'GET'});
+    const j = await r.json(); if(!j.ok) throw new Error(j.error || 'backend'); return j;
+  },
+  async post(payload){
+    // text/plain keeps this a "simple" request, so the browser skips the CORS preflight Apps Script cannot answer
+    const r = await fetch(CFG.backendUrl, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
+    const j = await r.json(); if(!j.ok) throw new Error(j.error || 'backend'); return j;
+  },
+  submitScore(e){ return this.post({action:'score', ...e}); },
+  leaderboard(kind, date){ return this.get({action:'leaderboard', kind, date, device:DEVICE}); },
+  saveResearch(row, trials){ return this.post({action:'research', summary:row, trials}); }
+};
+
+/* ---------------- local history & daily bookkeeping ---------------- */
+const History = {
+  all(){ const a = store.json('eg-history', []); return Array.isArray(a) ? a : []; },
+  add(e){ const a = this.all(); a.push(e); store.put('eg-history', a.slice(-300)); }
+};
+function dailyLog(){ const d = store.json('eg-daily', {}); return d && typeof d === 'object' ? d : {}; }
+function dailyStreak(){
+  const log = dailyLog(); let n = 0;
+  let cur = new Date(todayKey() + 'T00:00:00Z');
+  if(!log[todayKey()]) cur = new Date(cur.getTime() - 864e5);
+  while(log[cur.toISOString().slice(0, 10)]){ n++; cur = new Date(cur.getTime() - 864e5); }
+  return n;
+}
+const getName = () => store.get('eg-name', '') || store.get('ss-name', ''); // reuse the Signal Shift name on the same site
+const cleanName = s => String(s || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16);
+
+/* ---------------- static rendering ---------------- */
+function renderStatic(){
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i]').forEach(el => { el.innerHTML = t(el.dataset.i); });
+  document.querySelectorAll('[data-ph]').forEach(el => { el.placeholder = t(el.dataset.ph); });
+  $('#lang-btn').textContent = LANG === 'th' ? 'EN' : 'ไทย';
+  $('#sound-btn').textContent = SOUND ? t('soundOn') : t('soundOff');
+  $('#constructs').innerHTML = ['c_wm', 'c_upd', 'c_int', 'c_attn'].map(k => `<span class="tag">${t(k)}</span>`).join('');
+  const dl = dailyLog()[todayKey()];
+  $('#daily-sub').textContent = dl ? t('dailyBest', dl.best.toLocaleString()) : t('dailyNot');
+  const streak = dailyStreak(), bestN = +store.get('eg-bestN', '0');
+  $('#title-stats').innerHTML = `<span>${t('best')} <b>${(+store.get('eg-best', '0')).toLocaleString()}</b></span>` +
+    (bestN ? `<span>${t('bestN')} <b>${bestN}</b></span>` : '') +
+    (streak ? `<span>${t('streak')} <b>${streak}</b> ${t('days', streak)}</span>` : '');
+  $('#howgrid').innerHTML = ['nback', 'pos', 'sym', 'lure'].map(k =>
+    `<div class="howcard">${miniSVG(k === 'sym' ? 'dual' : k)}<div><h3>${t('k_' + k)}</h3><p>${t('h_' + k)}</p><span class="measure">${t('m_' + k)}</span></div></div>`).join('');
+  renderHowSeq();
+  $('#protocol').innerHTML = RESEARCH_PLAN.map((b, i) =>
+    `<tr><td>${i === 0 ? '' : i + '. '}${t('b_' + b.key)}</td><td>${b.len} ${t('trials')}</td></tr>`).join('');
+  $('#lb-name').value = getName();
+  if(CUR === 'results' && LAST) renderResults(LAST);
+  if(CUR === 'game' && RUN) setHudLabels();
+  if(CUR === 'inter' && INTER) INTER();
+  if(CUR === 'board') renderBoard();
+  if(CUR === 'progress') renderProgress();
+}
+// how-to strip: a fixed 2-back dual sequence with the right answer under each step
+const HOW_SEQ = [{pos:0, sym:1}, {pos:4, sym:3}, {pos:0, sym:6}, {pos:4, sym:3}, {pos:2, sym:3}];
+function renderHowSeq(){
+  $('#howseq').innerHTML = HOW_SEQ.map((s, i) => {
+    let ans;
+    if(i < 2) ans = t('demoWarm');
+    else {
+      const p = s.pos === HOW_SEQ[i - 2].pos, y = s.sym === HOW_SEQ[i - 2].sym;
+      ans = p && y ? 'F + J' : p ? 'F' : y ? 'J' : '–';
+    }
+    const note = i === 2 ? t('c_pos') : i === 3 ? `${t('c_pos')} + ${t('c_sym')}` : i === 4 ? t('k_lure') : '';
+    return `<figure><svg viewBox="0 0 300 300" aria-hidden="true">${miniGrid(SLOTS[s.pos], s.sym)}</svg><figcaption><b>${ans}</b>#${i + 1}${note ? ' · ' + note : ''}</figcaption></figure>`;
+  }).join('');
+}
+$('#lang-btn').addEventListener('click', () => { LANG = LANG === 'th' ? 'en' : 'th'; store.set('eg-lang', LANG); renderStatic(); });
+$('#sound-btn').addEventListener('click', () => { SOUND = !SOUND; store.set('eg-sound', SOUND ? '1' : '0'); if(!SOUND) Music.stop(); renderStatic(); if(SOUND) tone(660, .06); });
+
+/* ---------------- title demo ---------------- */
+let demoTimer = null, DEMO = null;
+function demoStep(){
+  if(!DEMO || DEMO.i >= DEMO.P.length){ RNG = Math.random; DEMO = {P:genChannel(30, 2, 9, .1), S:genChannel(30, 2, 9, .1), i:0}; }
+  const i = DEMO.i++, st = {pos:DEMO.P[i], sym:DEMO.S[i]};
+  drawGrid($('#demo-svg'), 2, true, st);
+  let cap;
+  if(i < 2) cap = t('demoWarm');
+  else {
+    const p = DEMO.P[i] === DEMO.P[i - 2], y = DEMO.S[i] === DEMO.S[i - 2];
+    cap = p && y ? `${t('demoAns')} F + J · ${t('demoBoth')}` : p ? `${t('demoAns')} F · ${t('c_pos')}` : y ? `${t('demoAns')} J · ${t('c_sym')}` : t('demoNone');
+  }
+  $('#demo-cap').textContent = cap;
+  $('#demo-cue').textContent = t('cue', 2, true);
+}
+function startDemo(){ DEMO = null; demoStep(); clearInterval(demoTimer); if(!REDUCED) demoTimer = setInterval(() => { if(CUR === 'title') demoStep(); }, 1900); }
+
+/* ---------------- run configs ---------------- */
+const PASS = .75, PERFECT = .9;
+const RESEARCH = {soa:3000, stim:500};
+const RESEARCH_PLAN = [
+  {key:'practice', n:1, dual:true, len:13, practice:true},
+  {key:'p1', n:1, dual:false, len:21},
+  {key:'p2', n:2, dual:false, len:32},
+  {key:'d2', n:2, dual:true, len:32},
+  {key:'d3', n:3, dual:true, len:33}
+];
+const DAILY = {key:'daily', n:2, dual:true, len:42, soa:2200, stim:500, legend:true};
+function arcadeLevel(L){
+  const mk = (n, dual, soa, intro, legend) => ({key:'L' + L, n, dual, len:20 + n, soa, stim: soa < 2000 ? 450 : 500, legend, intro});
+  if(L === 1) return mk(1, false, 2500, 'pos', true);
+  if(L === 2) return mk(1, true, 2500, 'dual', true);
+  if(L === 3) return mk(2, false, 2500, 'n2', true);
+  if(L === 4) return mk(2, true, 2400, null, true);
+  if(L === 5) return mk(2, true, 2200, null, true);
+  const n = 3 + Math.floor((L - 6) / 5), band = (L - 6) % 5;
+  return mk(n, band !== 0, Math.max(1500, 2500 - band * 180 - (n - 3) * 120), band === 0 ? 'up' : null, false);
+}
+function bossConfig(b, lv){ return {key:'B' + b, boss:b, n:lv.n, dual:true, len:40 + lv.n, soa:Math.max(1400, (lv.dual ? lv.soa : lv.soa - 180) - 300), stim:450, legend:b === 1, hp:Math.min(22, 12 + 4 * (b - 1))}; }
+
+/* ---------------- run machinery ---------------- */
+const ABORT = {abort:true};
+let RUN = null, TRIAL = null, CONT = null, INTER = null, LAST = null;
+const alive = r => { if(!RUN || RUN !== r || r.aborted) throw ABORT; };
+const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));
+const waitUntil = at => wait(at - performance.now());
+const frameTick = () => new Promise(res => requestAnimationFrame(() => res()));
+function waitContinue(){ return new Promise(res => { CONT = () => { CONT = null; res(); }; }); }
+
+function padFlash(ch, cls, ms = 260){
+  const p = ch === 'P' ? $('#pad-p') : $('#pad-s');
+  p.classList.remove('good', 'bad', 'hit'); void p.offsetWidth; p.classList.add(cls);
+  setTimeout(() => p.classList.remove(cls), ms);
+}
+function respond(ch){
+  const now = performance.now();
+  const T = TRIAL;
+  if(!T){ padFlash(ch, 'hit', 90); return; }
+  if(ch === 'S' && !T.cfg.dual) return;
+  if(T.resp[ch] !== null){ padFlash(ch, 'hit', 90); return; }
+  T.resp[ch] = Math.round(now - T.onset);
+  onPress(T, ch);
+}
+document.addEventListener('keydown', e => {
+  if(e.repeat) return;
+  if(CUR === 'game'){
+    if(e.code === 'KeyF' || e.code === 'ArrowLeft'){ e.preventDefault(); respond('P'); }
+    else if(e.code === 'KeyJ' || e.code === 'ArrowRight'){ e.preventDefault(); respond('S'); }
+    else if(e.code === 'Escape'){ quitRun(); }
+  } else if(CUR === 'inter' && CONT && (e.code === 'Space' || e.code === 'Enter')){ e.preventDefault(); CONT(); }
+});
+$('#pad-p').addEventListener('pointerdown', e => { e.preventDefault(); respond('P'); });
+$('#pad-s').addEventListener('pointerdown', e => { e.preventDefault(); respond('S'); });
+$('#inter-go').addEventListener('click', () => CONT && CONT());
+$('#quit').addEventListener('click', () => quitRun());
+function endBossFx(){ Music.stop(); document.body.classList.remove('boss-on'); $('#scr-game').classList.remove('boss'); $('#bossbar').hidden = true; }
+function quitRun(){
+  if(!RUN) return;
+  RUN.aborted = true; TRIAL = null; RUN = null; RNG = Math.random;
+  endBossFx(); home();
+}
+
+/* ---------------- HUD ---------------- */
+function setHudLabels(){
+  const r = RUN; if(!r) return;
+  const L = {arcade:['hud_score', 'hud_mult', 'hud_level', 'hud_lives'], daily:['hud_score', 'hud_mult', 'hud_trial', 'hud_n'], research:['hud_block', 'hud_trial', 'hud_acc', 'hud_n']}[r.mode];
+  L.forEach((k, i) => { $('#hud-l' + (i + 1)).textContent = t(k); });
+  $('#hud-lives').hidden = r.mode !== 'arcade'; $('#hud-v4').hidden = r.mode === 'arcade';
+  if(r.cfg && r.cfg.boss) $('#boss-name').textContent = `${t('bossEyebrow', r.cfg.boss)} · ${t('bossNames')[(r.cfg.boss - 1) % 4]}`;
+  if(r.cfg) $('#cue').textContent = t('cue', r.cfg.n, r.cfg.dual);
+  updateHud();
+}
+function liveAcc(r){
+  const cs = chanTrials(r.blockTrials || []);
+  return cs.length ? cs.filter(c => c.correct).length / cs.length : null;
+}
+function updateHud(){
+  const r = RUN; if(!r) return;
+  const cfg = r.cfg || {};
+  const acc = liveAcc(r);
+  if(r.mode === 'research'){
+    $('#hud-v1').textContent = `${r.blockIdx}/${RESEARCH_PLAN.length - 1}`;
+    $('#hud-v2').textContent = `${r.ti}/${r.blockN}`;
+    $('#hud-v3').textContent = acc === null ? '–' : Math.round(100 * acc) + '%';
+    $('#hud-v4').textContent = `${cfg.n}${cfg.dual ? ' ×2' : ''}`;
+    $('#meta-left').textContent = r.pid + ' · ' + r.session;
+    $('#meta-right').textContent = '';
+  } else {
+    $('#hud-v1').textContent = r.score.toLocaleString();
+    $('#hud-v2').textContent = '×' + r.mult;
+    if(r.mode === 'arcade'){
+      $('#hud-v3').textContent = cfg.boss ? 'BOSS' : `${r.level} · ${cfg.n}B`;
+      $('#hud-lives').innerHTML = Array.from({length:5}, (_, i) => `<span class="pip${i < r.lives ? ' on' : ''}"></span>`).join('');
+      $('#meta-left').textContent = cfg.boss ? '' : t('goal', Math.round(PASS * 100));
+    } else {
+      $('#hud-v3').textContent = `${r.ti}/${r.blockN}`;
+      $('#hud-v4').textContent = `${cfg.n}${cfg.dual ? ' ×2' : ''}`;
+      $('#meta-left').textContent = t('dailyEyebrow', fmtDate(r.date));
+    }
+    $('#meta-right').textContent = acc === null ? '' : `${t('hud_acc')} ${Math.round(100 * acc)}%`;
+  }
+  if(cfg.boss){
+    $('#prog').style.width = (100 * Math.max(0, r.bossHp) / r.bossMax) + '%';
+    $('#boss-hp').textContent = `HP ${Math.max(0, r.bossHp)}/${r.bossMax}`;
+  } else $('#prog').style.width = (100 * r.ti / Math.max(1, r.blockN)) + '%';
+}
+function setLegend(cfg, i){
+  const lg = $('#legend');
+  const show = RUN && (RUN.mode === 'research' || cfg.legend);
+  if(!show){ lg.innerHTML = ''; return; }
+  lg.innerHTML = i < cfg.n ? t('cmpWarm', cfg.n - i) : t('cmpN', cfg.n);
+}
+
+/* ---------------- fx ---------------- */
+const fx = $('#fx'), fxc = fx.getContext('2d');
+let parts = [], fxOn = false;
+function burst(color, n = 22, pos = null){
+  if(REDUCED) return;
+  const rect = fx.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  if(!rect.width) return;
+  fx.width = rect.width * dpr; fx.height = rect.height * dpr;
+  let cx = fx.width / 2, cy = fx.height / 2;
+  if(pos !== null && pos !== undefined){ const [x, y] = slotXY(SLOTS[pos]); cx = (x + 42) / 300 * fx.width; cy = (y + 42) / 300 * fx.height; }
+  const col = getComputedStyle(document.documentElement).getPropertyValue(color).trim();
+  for(let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 5;
+    parts.push({x:cx, y:cy, vx:Math.cos(a) * s * dpr, vy:Math.sin(a) * s * dpr, life:1, col, sz:(2 + Math.random() * 3) * dpr});
+  }
+  if(!fxOn){ fxOn = true; requestAnimationFrame(fxLoop); }
+}
+function fxLoop(){
+  fxc.clearRect(0, 0, fx.width, fx.height);
+  parts = parts.filter(p => p.life > 0);
+  parts.forEach(p => { p.x += p.vx; p.y += p.vy; p.vx *= .95; p.vy *= .95; p.life -= .03;
+    fxc.globalAlpha = Math.max(0, p.life); fxc.fillStyle = p.col; fxc.fillRect(p.x, p.y, p.sz, p.sz); });
+  fxc.globalAlpha = 1;
+  if(parts.length) requestAnimationFrame(fxLoop); else fxOn = false;
+}
+let fbTimer = null;
+function feedback(ok, text, color){
+  const w = $('#stage-wrap'), ft = $('#fbtext');
+  w.classList.remove('flash-good', 'flash-bad', 'shake'); void w.offsetWidth;
+  if(ok !== null){ w.classList.add(ok ? 'flash-good' : 'flash-bad'); if(!ok && !REDUCED) w.classList.add('shake'); }
+  clearTimeout(fbTimer); fbTimer = setTimeout(() => w.classList.remove('flash-good', 'flash-bad', 'shake'), 420);
+  ft.textContent = text; ft.style.color = `var(${color})`;
+  ft.classList.remove('on'); void ft.offsetWidth; ft.classList.add('on');
+}
+
+/* ---------------- trial engine ---------------- */
+const showFb = (r, cfg) => r.mode !== 'research' || r.feedback || cfg.practice;
+function onPress(T, ch){
+  const {r, cfg, tr} = T;
+  if(!RUN || RUN !== r) return;
+  const fb = showFb(r, cfg);
+  if(tr.warmup){ padFlash(ch, 'hit', 120); if(fb) feedback(null, t('early'), '--muted'); return; }
+  const target = ch === 'P' ? tr.posTarget : tr.symTarget;
+  if(target){
+    padFlash(ch, fb ? 'good' : 'hit', fb ? 260 : 90);
+    if(r.mode !== 'research'){
+      r.combo++; r.mult = Math.min(8, 1 + Math.floor(r.combo / 4));
+      const rt = T.resp[ch];
+      const pts = Math.round((100 + Math.max(0, cfg.soa - rt) / 10) * r.mult * cfg.n);
+      r.score += pts;
+      let label = '+' + pts;
+      if(cfg.boss){
+        const dmg = r.mult >= 4 ? 2 : 1;
+        r.bossHp -= dmg; if(dmg === 2) label = t('crit') + ' ' + label;
+        Music.tempo = 116 + 70 * (1 - Math.max(0, r.bossHp) / r.bossMax);
+      }
+      feedback(true, label, '--good'); burst(cfg.boss ? '--hot' : '--good', cfg.boss ? 30 : 20, tr.pos); sfx.good(r.mult);
+      updateHud();
+    } else if(fb){ feedback(true, t('hit'), '--good'); sfx.good(1); }
+  } else {
+    padFlash(ch, fb ? 'bad' : 'hit', fb ? 320 : 90);
+    if(r.mode !== 'research'){ r.combo = 0; r.mult = 1; updateHud(); }
+    if(fb){ feedback(false, t('fa'), '--hot'); sfx.bad(); }
+  }
+}
+async function runBlock(r, cfg, blockIdx){
+  const S = $('#stage');
+  r.cfg = cfg; r.ti = 0; r.blockN = cfg.len; r.blockTrials = [];
+  const N = cfg.n, nT = Math.round(.3 * (cfg.len - N)), lureP = .12;
+  const P = genChannel(cfg.len, N, nT, lureP);
+  const Y = cfg.dual ? genChannel(cfg.len, N, nT, lureP) : null;
+  $('#pad-s').disabled = !cfg.dual;
+  setHudLabels(); setLegend(cfg, 0);
+  drawGrid(S, N, cfg.dual, null);
+  await wait(900); alive(r);
+  const chs = cfg.dual ? ['P', 'S'] : ['P'];
+  for(let i = 0; i < cfg.len; i++){
+    alive(r);
+    const warm = i < N;
+    const tr = {
+      pid:r.pid || '', session:r.session || '', mode:r.mode, block:cfg.key, blockIdx, trial:i + 1, level:r.level || '',
+      n:N, dual:cfg.dual ? 1 : 0, soa:cfg.soa, stimMs:cfg.stim,
+      pos:P[i], sym:Y ? Y[i] : '',
+      posTarget: warm ? '' : (P[i] === P[i - N] ? 1 : 0), symTarget: warm || !Y ? '' : (Y[i] === Y[i - N] ? 1 : 0),
+      posLure: warm ? '' : isLure(P, i, N), symLure: warm || !Y ? '' : isLure(Y, i, N),
+      posResp:0, symResp: Y ? 0 : '', posRT:'', symRT:'', posCorrect:'', symCorrect:'',
+      warmup: warm ? 1 : 0, practice: cfg.practice ? 1 : 0, ts:''
+    };
+    setLegend(cfg, i);
+    drawGrid(S, N, cfg.dual, {pos:tr.pos, sym:tr.sym});
+    await frameTick();
+    const onset = performance.now();
+    tr.ts = new Date().toISOString();
+    TRIAL = {r, cfg, tr, onset, resp:{P:null, S:null}};
+    if(r.mode !== 'research') sfx.tick();
+    await waitUntil(onset + cfg.stim); alive(r);
+    drawGrid(S, N, cfg.dual, null);
+    await waitUntil(onset + cfg.soa); alive(r);
+    const T = TRIAL; TRIAL = null;
+    // score both channels
+    const fb = showFb(r, cfg);
+    let missed = false;
+    chs.forEach(ch => {
+      const pressed = T.resp[ch] !== null;
+      const key = ch === 'P' ? 'pos' : 'sym';
+      tr[key + 'Resp'] = pressed ? 1 : 0;
+      tr[key + 'RT'] = pressed ? T.resp[ch] : '';
+      if(!warm){
+        const target = tr[key + 'Target'] === 1;
+        tr[key + 'Correct'] = pressed === target ? 1 : 0;
+        if(target && !pressed){ missed = true; if(fb) padFlash(ch, 'bad', 320); }
+      }
+    });
+    if(missed){
+      if(r.mode !== 'research'){ r.combo = 0; r.mult = 1; }
+      if(fb){ feedback(false, t('miss'), '--hot'); sfx.bad(); }
+    }
+    r.trials.push(tr); r.blockTrials.push(tr);
+    r.ti = i + 1;
+    updateHud();
+    if(cfg.boss && r.bossHp <= 0){ await wait(400); return {res:'boss-win'}; }
+  }
+  const cs = chanTrials(r.blockTrials);
+  return {res: cfg.boss ? 'boss-escape' : 'done', acc: cs.length ? cs.filter(c => c.correct).length / cs.length : 0};
+}
+
+function chipHTML(k){
+  if(typeof k === 'number') return `<span class="rchip"><span class="nb">${k}</span>N-back</span>`;
+  return `<span class="rchip">${miniSVG(k === 'sym' ? 'dual' : k)}${t('c_' + k)}</span>`;
+}
+function chipsFor(cfg){ return [cfg.n, 'pos', ...(cfg.dual ? ['sym'] : [])]; }
+function interScreen({eyebrow, title, body, chips, notice, noticeBad, boss}){
+  INTER = () => {
+    const nn = typeof notice === 'function' ? notice() : notice;
+    const n = $('#inter-notice'); n.hidden = !nn; n.textContent = nn || ''; n.className = 'notice' + (noticeBad ? ' bad' : '');
+    $('#inter-panel').className = 'panel' + (boss ? ' boss' : '');
+    $('#inter-eyebrow').textContent = typeof eyebrow === 'function' ? eyebrow() : eyebrow;
+    $('#inter-title').textContent = typeof title === 'function' ? title() : title;
+    $('#inter-body').textContent = typeof body === 'function' ? body() : body;
+    $('#inter-chips').innerHTML = chips.map(chipHTML).join('');
+  };
+  INTER(); show('inter'); $('#inter-go').focus({preventScroll:true});
+  return waitContinue().then(() => { INTER = null; });
+}
+const newRun = extra => ({trials:[], blockTrials:[], score:0, combo:0, mult:1, ti:0, blockN:1, aborted:false, startedAt:new Date().toISOString(), runId:'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ...extra});
+
+/* ---------------- arcade ---------------- */
+async function startArcade(){
+  ac(); RNG = Math.random;
+  const r = RUN = newRun({mode:'arcade', lives:3, level:1, maxN:0, bosses:0});
+  let notice = null, noticeBad = false;
+  try{
+    for(;;){
+      const cfg = arcadeLevel(r.level), L = r.level;
+      const introKey = cfg.intro ? 'lv_' + cfg.intro : null;
+      const nb = notice, bad = noticeBad;
+      await interScreen({
+        eyebrow: () => `${t('level')} ${L}` + (cfg.intro && L > 1 ? ' · ' + t('newRule') : ''),
+        title: () => cfg.intro === 'up' ? `${cfg.n}-BACK` : introKey ? t(introKey)[0] : `${t('level')} ${L}`,
+        body: () => (introKey ? t(introKey)[1] + ' ' : '') + t('lv_next', cfg.n, cfg.dual, (cfg.soa / 1000).toFixed(1)) + '. ' + t('goal', Math.round(PASS * 100)) + '.',
+        chips: chipsFor(cfg), notice: nb, noticeBad: bad
+      });
+      notice = null; alive(r);
+      show('game');
+      const res = await runBlock(r, cfg, L);
+      const pct = Math.round(100 * res.acc);
+      if(res.acc < PASS){
+        r.lives--; sfx.bad();
+        if(r.lives <= 0) break;
+        notice = t('failNote', pct); noticeBad = true;
+        continue; // retry the same level
+      }
+      const bonus = res.acc >= PERFECT && r.lives < 5;
+      r.score += 500 * L; if(bonus) r.lives++;
+      r.maxN = Math.max(r.maxN, cfg.n); r.cleared = L;
+      sfx.level();
+      notice = t('passNote', L, pct, bonus); noticeBad = false;
+      if(L % 5 === 0){
+        const b = L / 5, bc = bossConfig(b, cfg);
+        const nb2 = notice;
+        await interScreen({
+          eyebrow: () => t('bossEyebrow', b), title: () => t('bossNames')[(b - 1) % 4],
+          body: () => t('bossBody') + ' ' + t('lv_next', bc.n, true, (bc.soa / 1000).toFixed(1)) + '.', chips: chipsFor(bc), boss:true,
+          notice: nb2, noticeBad:false
+        });
+        alive(r);
+        r.bossHp = r.bossMax = bc.hp;
+        $('#scr-game').classList.add('boss'); $('#bossbar').hidden = false; document.body.classList.add('boss-on');
+        show('game'); sfx.boss(); setTimeout(() => { if(RUN === r) Music.start(); }, 500);
+        const br = await runBlock(r, bc, bc.key);
+        endBossFx();
+        if(br.res === 'boss-win'){ const bonus2 = 3000 * b; r.score += bonus2; r.lives = Math.min(5, r.lives + 2); r.bosses++; notice = t('bossWin', bonus2); noticeBad = false; sfx.level(); }
+        else { notice = t('bossEscape'); noticeBad = true; }
+      }
+      r.level++;
+    }
+    endBossFx(); sfx.over();
+    finishRun(r);
+  }catch(e){ endBossFx(); if(e !== ABORT) console.error(e); }
+}
+
+/* ---------------- daily ---------------- */
+async function startDaily(){
+  ac();
+  const date = todayKey();
+  const r = RUN = newRun({mode:'daily', date, level:''});
+  try{
+    await interScreen({
+      eyebrow: () => t('dailyEyebrow', fmtDate(date)), title: () => t('dailyTitle'), body: () => t('dailyBody'),
+      chips: chipsFor(DAILY), notice: () => { const d = dailyLog()[date]; return d ? t('dailyBest', d.best.toLocaleString()) : null; }
+    });
+    alive(r); show('game');
+    RNG = seeded('echo-grid|daily|' + date);
+    await runBlock(r, DAILY, 'daily');
+    RNG = Math.random;
+    sfx.level(); finishRun(r);
+  }catch(e){ RNG = Math.random; if(e !== ABORT) console.error(e); }
+}
+
+/* ---------------- research ---------------- */
+function setupValid(){ $('#setup-start').disabled = !($('#pid').value.trim() && $('#consent').checked); }
+$('#pid').addEventListener('input', setupValid);
+$('#consent').addEventListener('change', setupValid);
+async function startResearch(){
+  ac(); RNG = Math.random;
+  const r = RUN = newRun({mode:'research', pid:$('#pid').value.trim(), session:$('#sess').value.trim() || 'S1', feedback:$('#fb').checked, blockIdx:0});
+  try{
+    for(let b = 0; b < RESEARCH_PLAN.length; b++){
+      const cfg = {...RESEARCH_PLAN[b], ...RESEARCH};
+      r.blockIdx = b;
+      await interScreen({
+        eyebrow: () => b === 0 ? t('b_practice') : t('blockOf', b, RESEARCH_PLAN.length - 1),
+        title: () => t('b_' + cfg.key),
+        body: () => t('blockBody')[cfg.key] + (b > 0 ? ' ' + t('restNote') : ''),
+        chips: chipsFor(cfg)
+      });
+      alive(r); show('game');
+      await runBlock(r, cfg, b);
+    }
+    finishRun(r);
+  }catch(e){ if(e !== ABORT) console.error(e); }
+}
+
+/* ---------------- analysis ---------------- */
+const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+const median = a => { if(!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+function invNorm(p){
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+  const c = [-.007784894002430293, -.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [.007784695709041462, .3224671290700398, 2.445134137142996, 3.754408661907416];
+  const pl = .02425; let q, r;
+  if(p < pl){ q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  if(p > 1 - pl){ q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  q = p - .5; r = q * q;
+  return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+}
+// Expand trials into one row per active channel (scorable trials only)
+function chanTrials(trials){
+  const out = [];
+  trials.forEach(x => {
+    if(x.warmup) return;
+    out.push({ch:'P', n:x.n, dual:x.dual, practice:x.practice, block:x.block, target:x.posTarget === 1, lure:x.posLure === 1, resp:x.posResp === 1, rt:x.posRT, correct:x.posCorrect === 1});
+    if(x.dual) out.push({ch:'S', n:x.n, dual:x.dual, practice:x.practice, block:x.block, target:x.symTarget === 1, lure:x.symLure === 1, resp:x.symResp === 1, rt:x.symRT, correct:x.symCorrect === 1});
+  });
+  return out;
+}
+function sdt(cs){
+  const T = cs.filter(c => c.target), NT = cs.filter(c => !c.target);
+  if(!T.length || !NT.length) return {hit:null, fa:null, dprime:null};
+  const hits = T.filter(c => c.resp).length, fas = NT.filter(c => c.resp).length;
+  const H = (hits + .5) / (T.length + 1), F = (fas + .5) / (NT.length + 1);
+  return {hit:hits / T.length, fa:fas / NT.length, dprime: invNorm(H) - invNorm(F), nT:T.length, nN:NT.length};
+}
+const condKey = c => `${c.n}|${c.dual ? 'd' : 's'}|${c.ch}`;
+function summarize(trials){
+  const cs = chanTrials(trials).filter(c => !c.practice);
+  const all = sdt(cs);
+  const hitRT = cs.filter(c => c.target && c.resp && c.rt !== '' && c.rt >= 150).map(c => c.rt);
+  const nonT = cs.filter(c => !c.target);
+  const lures = nonT.filter(c => c.lure), plain = nonT.filter(c => !c.lure);
+  const conds = {};
+  cs.forEach(c => { (conds[condKey(c)] = conds[condKey(c)] || []).push(c); });
+  const cond = {};
+  Object.entries(conds).forEach(([k, v]) => { const s = sdt(v); if(s.nT >= 3 && s.nN >= 3) cond[k] = s.dprime; });
+  const g = k => cond[k] ?? null;
+  return {
+    n: trials.filter(x => !x.warmup && !x.practice).length,
+    acc: cs.length ? cs.filter(c => c.correct).length / cs.length : null,
+    dprime: all.dprime, hitRate: all.hit, faRate: all.fa,
+    rtMedian: median(hitRT), rtMean: mean(hitRT),
+    lureFA: lures.length ? lures.filter(c => c.resp).length / lures.length : null,
+    nonLureFA: plain.length ? plain.filter(c => c.resp).length / plain.length : null,
+    cond,
+    dP1: g('1|s|P'), dP2: g('2|s|P'), dP2d: g('2|d|P'), dS2d: g('2|d|S'), dP3d: g('3|d|P'), dS3d: g('3|d|S'),
+    dualCost: g('2|s|P') !== null && g('2|d|P') !== null ? g('2|s|P') - g('2|d|P') : null
+  };
+}
+
+/* ---------------- results ---------------- */
+const fmtMs = v => v === null || v === undefined ? '–' : Math.round(v).toLocaleString() + ' ms';
+const fmtPct = v => v === null || v === undefined ? '–' : (100 * v).toFixed(1) + '%';
+const fmtDp = v => v === null || v === undefined ? '–' : v.toFixed(2);
+
+function finishRun(r){
+  RUN = null; TRIAL = null; RNG = Math.random;
+  const sum = summarize(r.trials);
+  const prev = History.all().filter(x => (x.mode === 'research') === (r.mode === 'research')).slice(-5);
+  let newBest = false;
+  if(r.mode === 'arcade'){
+    const best = +store.get('eg-best', '0');
+    if(r.score > best){ store.set('eg-best', String(r.score)); newBest = best > 0; }
+    if(r.maxN > +store.get('eg-bestN', '0')) store.set('eg-bestN', String(r.maxN));
+  }
+  if(r.mode === 'daily'){
+    const log = dailyLog(); const d = log[r.date] || {best:0, plays:0};
+    if(r.score > d.best){ d.best = r.score; newBest = d.plays > 0; }
+    d.plays++; log[r.date] = d; store.put('eg-daily', log);
+  }
+  History.add({ts:Date.now(), date:todayKey(), mode:r.mode, score:r.score || 0, level:r.level || '', maxN: r.mode === 'arcade' ? r.maxN : null, n:sum.n,
+    acc:sum.acc, dprime:sum.dprime, rtMedian:sum.rtMedian, lureFA:sum.lureFA});
+  LAST = {r, sum, newBest, prev, save: r.mode === 'research' ? 'saving' : null, board:{state:'idle'}};
+  renderResults(LAST); show('results');
+  if(r.mode === 'research') saveRun(LAST);
+  else if(getName() && Backend.online()) submitBoard(LAST);
+}
+function deltaHTML(L){
+  const {sum, prev} = L;
+  if(!prev.length) return `<span>${t('firstRun')}</span>`;
+  const avg = k => mean(prev.map(x => x[k]).filter(v => v !== null && v !== undefined));
+  const items = [];
+  const a = avg('acc'); if(a !== null && sum.acc !== null){ const d = (sum.acc - a) * 100; items.push([t('d_acc'), (d >= 0 ? '+' : '') + d.toFixed(1) + ' pt', d > .5 ? 'up' : d < -.5 ? 'down' : '']); }
+  const dp = avg('dprime'); if(dp !== null && sum.dprime !== null){ const d = sum.dprime - dp; items.push([t('d_dp'), (d >= 0 ? '+' : '') + d.toFixed(2), d > .05 ? 'up' : d < -.05 ? 'down' : '']); }
+  const rt = avg('rtMedian'); if(rt !== null && sum.rtMedian !== null){ const d = sum.rtMedian - rt; items.push([t('d_rt'), (d > 0 ? '+' : '') + Math.round(d) + ' ms', d < -5 ? 'up' : d > 5 ? 'down' : '']); }
+  return `<span>${t('vsPrev', prev.length)}</span>` + items.map(([k, v, c]) => `<span class="delta ${c}">${h(k)} ${h(v)}</span>`).join('');
+}
+function renderResults(L){
+  const {r, sum} = L, mode = r.mode;
+  $('#res-eyebrow').textContent = mode === 'arcade' ? `${t('arcadeRes')} ${r.level}` : mode === 'daily' ? t('dailyEyebrow', fmtDate(r.date)) : `${t('researchRes')} · ${r.pid} · ${r.session}`;
+  $('#res-title').textContent = mode === 'arcade' ? t('gameOver') : mode === 'daily' ? t('dailyDone') : t('runDone');
+  $('#res-score').textContent = mode !== 'research' ? r.score.toLocaleString() + (L.newBest ? ' · ' + t('newBest') : '') : '';
+  $('#res-deltas').innerHTML = deltaHTML(L);
+  const tiles = [
+    ['t_acc', fmtPct(sum.acc), 'n_acc', true], ['t_dp', fmtDp(sum.dprime), 'n_dp', true],
+    ['t_hit', fmtPct(sum.hitRate), 'n_hit'], ['t_fa', fmtPct(sum.faRate), 'n_fa'],
+    ['t_rt', fmtMs(sum.rtMedian), 'n_rt'], ['t_lure', fmtPct(sum.lureFA), 'n_lure', false, sum.nonLureFA !== null ? ` · ${fmtPct(sum.nonLureFA)}` : ''],
+    ...(mode === 'arcade' ? [['t_maxN', r.maxN ? r.maxN + '-back' : '–', 'n_maxN']] : []),
+    ...(mode === 'research' ? [['t_dual', fmtDp(sum.dualCost), 'n_dual']] : [])
+  ].filter(x => x[1] !== '–' || mode === 'research');
+  $('#res-tiles').innerHTML = tiles.map(([k, v, n, lead, extra]) => `<div class="tile${lead ? ' lead' : ''}"><div class="k">${t(k)}</div><div class="v">${v}</div><div class="n">${t(n)}${extra || ''}</div></div>`).join('');
+  $('#res-chart').innerHTML = chartSVG(sum);
+  const bb = $('#res-board');
+  bb.hidden = mode === 'research' || !Backend.online();
+  $('#res-board-btn').hidden = mode === 'research';
+  if(!bb.hidden){
+    if(document.activeElement !== $('#res-name')) $('#res-name').value = $('#res-name').value || getName();
+    const st = L.board.state, rk = $('#res-rank');
+    $('#res-send').disabled = st === 'sending' || st === 'done';
+    rk.className = st === 'done' ? 'rank' : '';
+    rk.textContent = st === 'sending' ? t('sending') : st === 'done' ? t('rankIs', L.board.rank, L.board.total, mode) : st === 'error' ? t('sendFail') : st === 'noname' ? t('needName') : '';
+  }
+  const stEl = $('#res-status');
+  if(L.save){ stEl.hidden = false; stEl.className = 'status' + (L.save === 'saved' ? ' ok' : L.save === 'saving' ? '' : ' err'); stEl.textContent = t(L.save); }
+  else stEl.hidden = true;
+}
+function chartSVG(sum){
+  const items = Object.entries(sum.cond).map(([k, v]) => { const [n, d, ch] = k.split('|'); return {n:+n, d, ch, v}; })
+    .sort((a, b) => a.n - b.n || (a.d === b.d ? 0 : a.d === 's' ? -1 : 1) || (a.ch === 'P' ? -1 : 1));
+  if(!items.length) return `<div class="empty">–</div>`;
+  const step = 92, pl = 36, pb = 44, pt = 22, H = 230, W = pl + 10 + step * items.length;
+  const hi = Math.max(3, Math.ceil(Math.max(...items.map(x => x.v)))), lo = Math.min(0, Math.floor(Math.min(...items.map(x => x.v))));
+  const y = v => pt + (H - pt - pb) * (hi - v) / (hi - lo);
+  const bw = 52;
+  // drawn at natural size (never stretched); the box scrolls sideways on narrow screens
+  let s = `<div class="chartscroll"><svg class="chart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="d′">`;
+  for(let v = lo; v <= hi; v++) s += `<line class="${v === 0 ? 'zero' : 'grid'}" x1="${pl}" x2="${W - 6}" y1="${y(v)}" y2="${y(v)}"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  items.forEach((it, i) => {
+    const cx = pl + step * i + step / 2, top = y(Math.max(0, it.v)), bot = y(Math.min(0, it.v));
+    s += `<rect class="bar ${it.ch === 'S' ? 's' : ''}" x="${cx - bw / 2}" y="${top}" width="${bw}" height="${Math.max(1, bot - top)}" rx="4"/>`;
+    s += `<text class="vlab" x="${cx}" y="${top - 6}" text-anchor="middle">${it.v.toFixed(2)}</text>`;
+    s += `<text x="${cx}" y="${H - pb + 17}" text-anchor="middle" style="font-family:var(--f-display);font-size:12px;fill:var(--fg)">${it.n}-back${it.d === 'd' ? ' ×2' : ''}</text>`;
+    s += `<text x="${cx}" y="${H - pb + 32}" text-anchor="middle" style="font-family:var(--f-body);font-size:11px">${t(it.ch === 'P' ? 'c_pos' : 'c_sym')}</text>`;
+  });
+  return s + '</svg></div>';
+}
+
+/* ---------------- leaderboard submit ---------------- */
+async function submitBoard(L){
+  const name = cleanName($('#res-name').value || getName());
+  if(!name){ L.board = {state:'noname'}; renderResults(L); return; }
+  store.set('eg-name', name);
+  L.board = {state:'sending'}; renderResults(L);
+  const r = L.r, s = L.sum;
+  try{
+    const res = await Backend.submitScore({mode:r.mode, date: r.mode === 'daily' ? r.date : todayKey(), name, device:DEVICE, score:r.score,
+      level: r.mode === 'arcade' ? r.level : '', maxN: r.mode === 'arcade' ? r.maxN : 2,
+      acc: s.acc === null ? '' : +s.acc.toFixed(4), dprime: s.dprime === null ? '' : +s.dprime.toFixed(3),
+      trials:r.trials.length, bosses:r.bosses || 0});
+    L.board = {state:'done', rank:res.rank, total:res.total};
+  }catch(e){ console.error(e); L.board = {state:'error'}; }
+  if(LAST === L && CUR === 'results') renderResults(L);
+}
+$('#res-send').addEventListener('click', () => { if(LAST) submitBoard(LAST); });
+$('#res-name').addEventListener('keydown', e => { if(e.key === 'Enter' && LAST) submitBoard(LAST); });
+
+/* ---------------- CSV / save ---------------- */
+const TRIAL_COLS = ['pid', 'session', 'mode', 'block', 'blockIdx', 'trial', 'level', 'n', 'dual', 'soa', 'stimMs', 'pos', 'sym', 'posTarget', 'symTarget', 'posLure', 'symLure',
+  'posResp', 'symResp', 'posRT', 'symRT', 'posCorrect', 'symCorrect', 'warmup', 'practice', 'ts'];
+const SUM_COLS = ['pid', 'session', 'runId', 'startedAt', 'n', 'acc', 'dprime', 'hitRate', 'faRate', 'rtMedian', 'rtMean', 'lureFA', 'nonLureFA', 'dP1', 'dP2', 'dP2d', 'dS2d', 'dP3d', 'dS3d', 'dualCost'];
+const esc = v => { if(v === null || v === undefined) return ''; const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const toCSV = (rows, cols) => [cols.join(','), ...rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
+function sumRow(meta, s){
+  const o = {...meta};
+  SUM_COLS.slice(4).forEach(k => { const v = s[k]; o[k] = v === null || v === undefined ? '' : (Math.abs(v) < 10 ? +v.toFixed(4) : Math.round(v)); });
+  return o;
+}
+function saveBlob(name, text){
+  try{
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + text], {type:'text/csv;charset=utf-8'}));
+    a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    return true;
+  }catch(e){ return false; }
+}
+function lastCSV(){ return LAST ? toCSV(LAST.r.trials, TRIAL_COLS) : ''; }
+function lastName(){ const r = LAST.r; const d = r.startedAt.slice(0, 10); return r.mode === 'research' ? `echo-grid_${r.pid}_${r.session}_${d}.csv`.replace(/[^\w.\-]/g, '_') : `echo-grid_${r.mode}_${d}.csv`; }
+$('#res-csv').addEventListener('click', () => {
+  if(!LAST) return;
+  if(!saveBlob(lastName(), lastCSV())){ const st = $('#res-status'); st.hidden = false; st.className = 'status err'; st.textContent = t('dlFail'); }
+});
+$('#res-copy').addEventListener('click', async () => {
+  if(!LAST) return;
+  const text = lastCSV(), box = $('#res-csvbox'), st = $('#res-status');
+  try{ await navigator.clipboard.writeText(text); st.hidden = false; st.className = 'status ok'; st.textContent = t('copied'); }
+  catch(e){ box.hidden = false; box.value = text; box.focus(); box.select(); st.hidden = false; st.className = 'status err'; st.textContent = t('copyFail'); }
+});
+$('#res-again').addEventListener('click', () => {
+  if(!LAST) return startArcade();
+  if(LAST.r.mode === 'research') show('setup'); else if(LAST.r.mode === 'daily') startDaily(); else startArcade();
+});
+$('#res-menu').addEventListener('click', home);
+$('#res-board-btn').addEventListener('click', () => openBoard(LAST && LAST.r.mode === 'daily' ? 'daily' : 'arcade'));
+
+async function saveRun(L){
+  const r = L.r, s = L.sum;
+  const done = st => { L.save = st; if(CUR === 'results' && LAST === L) renderResults(L); };
+  if(!Backend.online()) return done('noSave');
+  const row = sumRow({pid:r.pid, session:r.session, runId:r.runId, startedAt:r.startedAt}, s);
+  try{ await Backend.saveResearch(row, r.trials.map(x => ({...x, runId:r.runId}))); done('saved'); }
+  catch(e){ console.error(e); done('saveFail'); }
+}
+
+/* ---------------- leaderboard screen ---------------- */
+let LB_TAB = 'daily', LB = null;
+function openBoard(tab){ LB_TAB = tab || LB_TAB; show('board'); renderStatic(); loadBoard(); }
+function localBoardRows(kind){
+  const rows = [], nm = getName() || t('you');
+  if(kind === 'daily'){ const d = dailyLog()[todayKey()]; if(d) rows.push({name:nm, score:d.best, level:'', maxN:'', acc:'', me:true}); }
+  else History.all().filter(x => x.mode === 'arcade').sort((a, b) => b.score - a.score).slice(0, 10)
+    .forEach(x => rows.push({name:nm, score:x.score, level:x.level, maxN:x.maxN, acc:x.acc, me:true}));
+  return rows;
+}
+async function loadBoard(){
+  LB = null; renderBoard();
+  if(!Backend.online()){ LB = {rows:localBoardRows(LB_TAB)}; renderBoard(); return; }
+  try{ const res = await Backend.leaderboard(LB_TAB, todayKey()); LB = {rows:res.rows || []}; }
+  catch(e){ console.error(e); LB = {error:true}; }
+  if(CUR === 'board') renderBoard();
+}
+function renderBoard(){
+  $('#board-intro').textContent = Backend.online() ? t('boardOnline') : t('boardLocal');
+  $('#tab-daily').setAttribute('aria-pressed', LB_TAB === 'daily'); $('#tab-arcade').setAttribute('aria-pressed', LB_TAB === 'arcade');
+  $('#tab-daily').textContent = `${t('tabDaily')} · ${fmtDate(todayKey())}`;
+  $('#lb-play').textContent = LB_TAB === 'daily' ? t('daily') : t('playArcade');
+  const cols = LB_TAB === 'arcade' ? ['lb_rank', 'lb_name', 'lb_score', 'lb_level', 'lb_n', 'lb_acc'] : ['lb_rank', 'lb_name', 'lb_score', 'lb_acc'];
+  $('#lb-head').innerHTML = cols.map(k => `<th>${t(k)}</th>`).join('');
+  const body = $('#lb-body');
+  if(LB === null){ body.innerHTML = `<tr><td colspan="${cols.length}" class="empty">${t('loading')}</td></tr>`; return; }
+  if(LB.error){ body.innerHTML = `<tr><td colspan="${cols.length}" class="empty">${t('lb_fail')}</td></tr>`; return; }
+  if(!LB.rows.length){ body.innerHTML = `<tr><td colspan="${cols.length}" class="empty">${t('lb_none')}</td></tr>`; return; }
+  const pc = v => v === '' || v === null || v === undefined ? '–' : (100 * v).toFixed(0) + '%';
+  body.innerHTML = LB.rows.map((r, i) => `<tr class="${r.me ? 'me' : ''}"><td class="${i === 0 ? 'r1' : ''}">${i + 1}</td><td class="name">${h(r.name)}${r.me ? ` · ${t('you')}` : ''}</td>` +
+    `<td>${(+r.score).toLocaleString()}</td>` + (LB_TAB === 'arcade' ? `<td>${h(r.level)}</td><td>${r.maxN ? h(r.maxN) : '–'}</td>` : '') + `<td>${pc(r.acc)}</td></tr>`).join('');
+}
+$('#tab-daily').addEventListener('click', () => { LB_TAB = 'daily'; loadBoard(); });
+$('#tab-arcade').addEventListener('click', () => { LB_TAB = 'arcade'; loadBoard(); });
+$('#lb-refresh').addEventListener('click', loadBoard);
+$('#lb-save').addEventListener('click', () => {
+  const n = cleanName($('#lb-name').value); if(!n) return;
+  store.set('eg-name', n); $('#lb-name').value = n;
+  const st = $('#lb-status'); st.hidden = false; st.className = 'status ok'; st.textContent = t('nameSaved');
+});
+$('#lb-play').addEventListener('click', () => LB_TAB === 'daily' ? startDaily() : startArcade());
+$('#lb-back').addEventListener('click', home);
+
+/* ---------------- progress screen ---------------- */
+function lineChart(points, key, fmt, lowerBetter){
+  const pts = points.filter(p => p[key] !== null && p[key] !== undefined && p[key] !== '').slice(-30);
+  if(pts.length < 2) return `<div class="empty">${t('p_need')}</div>`;
+  const W = 320, H = 150, pl = 40, pr = 34, pt = 14, pb = 18;
+  const vals = pts.map(p => p[key]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if(hi - lo < 1e-9){ lo -= 1; hi += 1; }
+  const pad = (hi - lo) * .15; lo -= pad; hi += pad;
+  const x = i => pl + (W - pl - pr) * (i / (pts.length - 1));
+  const y = v => pt + (H - pt - pb) * (1 - (v - lo) / (hi - lo));
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
+  [lo + pad, (lo + hi) / 2, hi - pad].forEach(v => { s += `<line class="grid" x1="${pl}" x2="${W - pr + 4}" y1="${y(v)}" y2="${y(v)}"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end">${fmt(v)}</text>`; });
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
+  s += `<path class="area" d="${d} L${x(pts.length - 1)},${H - pb} L${x(0)},${H - pb} Z"/><path class="ln" d="${d}"/>`;
+  pts.forEach((p, i) => { if(i < pts.length - 1) s += `<circle class="dot ${p.mode}" cx="${x(i)}" cy="${y(p[key])}" r="3"><title>${new Date(p.ts).toLocaleDateString()} · ${p.mode} · ${fmt(p[key])}</title></circle>`; });
+  const lx = x(pts.length - 1), ly = y(vals[vals.length - 1]);
+  s += `<circle class="end" cx="${lx}" cy="${ly}" r="5"/><text class="vlab" x="${lx + 7}" y="${ly + 4}">${fmt(vals[vals.length - 1])}</text>`;
+  s += '</svg>';
+  const first = mean(vals.slice(0, Math.min(5, vals.length - 1))), last = vals[vals.length - 1];
+  const diff = last - first, good = lowerBetter ? diff < 0 : diff > 0;
+  return s + `<div class="sub">${t('p_trend', fmt(Math.abs(diff)), good)}</div>`;
+}
+function renderProgress(){
+  const all = History.all();
+  const arc = all.filter(x => x.mode === 'arcade');
+  const ns = arc.map(x => x.maxN).filter(v => v);
+  $('#prog-tiles').innerHTML = [
+    ['p_runs', all.length.toLocaleString()], ['p_best', arc.length ? Math.max(...arc.map(x => x.score)).toLocaleString() : '–'],
+    ['p_streak', dailyStreak() + ' ' + t('days', dailyStreak())], ['p_bestN', ns.length ? Math.max(...ns) + '-back' : '–']
+  ].map(([k, v]) => `<div class="tile"><div class="k">${t(k)}</div><div class="v">${v}</div></div>`).join('');
+  const pts = all.map(x => ({...x, nA: x.mode === 'arcade' ? x.maxN : null}));
+  $('#prog-charts').innerHTML = [
+    ['pc_dp', 'dprime', v => v.toFixed(2), false, 'pc_higher'],
+    ['pc_rt', 'rtMedian', v => Math.round(v) + '', true, 'pc_lower'],
+    ['pc_n', 'nA', v => v.toFixed(v % 1 ? 1 : 0), false, 'pc_higher']
+  ].map(([title, key, fmt, lower, note]) => `<div class="chartbox"><h3>${t(title)}</h3><div class="sub">${t(note)}</div>${lineChart(pts, key, fmt, lower)}</div>`).join('');
+}
+
+/* ---------------- navigation ---------------- */
+$('#go-arcade').addEventListener('click', startArcade);
+$('#go-daily').addEventListener('click', startDaily);
+$('#go-research').addEventListener('click', () => { setupValid(); show('setup'); $('#pid').focus(); });
+$('#go-how').addEventListener('click', () => show('how'));
+$('#go-board').addEventListener('click', () => openBoard('daily'));
+$('#go-progress').addEventListener('click', () => { show('progress'); renderProgress(); });
+$('#prog-play').addEventListener('click', startDaily);
+$('#prog-back').addEventListener('click', home);
+$('#how-back').addEventListener('click', home);
+$('#how-play').addEventListener('click', startArcade);
+$('#setup-back').addEventListener('click', home);
+$('#setup-start').addEventListener('click', () => { if(!$('#setup-start').disabled) startResearch(); });
+$('#brand').addEventListener('click', () => { if(RUN) quitRun(); else home(); });
+
+renderStatic();
+startDemo();
+window.__eg = {summarize, genChannel, isLure, chanTrials, arcadeLevel, bossConfig, seeded, Backend, History, setRng(f){ RNG = f; }, get last(){ return LAST; }, get run(){ return RUN; }, get trial(){ return TRIAL; }};
+})();
+</script>
+</body>
+</html>
